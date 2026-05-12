@@ -142,7 +142,7 @@ export default function App() {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const newOrg = {
       ...data,
-      status: "verifying",
+      status: "approved",
       verifyCode: code,
       verifyExpiry: Date.now() + 30 * 60 * 1000,
     };
