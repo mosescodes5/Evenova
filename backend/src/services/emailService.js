@@ -1,9 +1,25 @@
+/**
+ * emailService.js — Dual-provider email: Brevo (bulk) + SMTP (fallback)
+ *
+ * Strategy:
+ *   send()         → Brevo first → SMTP fallback (single transactional emails)
+ *   blast()        → Brevo only  (bulk marketing, personalized, tracked)
+ *   sponsorBlast() → Brevo with attachments → SMTP fallback per-recipient
+ *
+ * Required env vars:
+ *   EMAIL_PROVIDER=brevo+smtp   ← new dual-mode value
+ *   BREVO_API_KEY=xkeysib-...
+ *   SMTP_HOST=smtp.gmail.com
+ *   SMTP_PORT=587
+ *   SMTP_USER=hello.evenova@gmail.com
+ *   SMTP_PASS=<gmail-app-password>
+ *   EMAIL_FROM_NAME=Evenova
+ *   EMAIL_FROM_ADDRESS=hello.evenova@gmail.com
+ */
+
 import { config } from "../config.js";
 
-/**
- * Runtime config override — set via POST /api/email/config
- * Persists for the life of the server process (survives across requests).
- */
+// ─── Runtime override (POST /api/email/config) ───────────────────────────────
 let _runtime = {};
 
 export function configureEmail(cfg) {
@@ -12,97 +28,176 @@ export function configureEmail(cfg) {
 }
 
 export function getEmailStatus() {
-  const provider = _runtime.provider || config.email.provider;
-  const hasKey = !!(
-    (_runtime.resendKey || config.email.resendKey) ||
-    (_runtime.brevoKey  || config.email.brevoKey)  ||
-    (_runtime.sesUrl    || config.email.sesUrl)     ||
-    (config.email.smtp.host)
-  );
-  return { provider, hasKey, mocked: provider === "mock" || !hasKey };
+  const provider  = _runtime.provider  || config.email.provider;
+  const brevoKey  = _runtime.brevoKey  || config.email.brevoKey;
+  const smtpReady = !!(config.email.smtp.host && config.email.smtp.user && config.email.smtp.pass);
+  const brevoReady = !!brevoKey;
+
+  return {
+    provider,
+    brevoReady,
+    smtpReady,
+    mocked: !brevoReady && !smtpReady,
+  };
 }
 
-/**
- * Build a nodemailer transporter using Gmail SMTP (App Password).
- * SMTP_HOST=smtp.gmail.com | SMTP_PORT=587 | SMTP_USER=you@gmail.com | SMTP_PASS=<app-password>
- */
-async function getSmtpTransporter() {
-  const nm = await import("nodemailer");
-  const mailer = nm.default ?? nm;
+// ─── SMTP transporter (nodemailer) ───────────────────────────────────────────
+let _smtpTransporter = null;
 
-  const host = config.email.smtp.host;
-  const port = config.email.smtp.port;
-  const user = config.email.smtp.user;
-  const pass = config.email.smtp.pass;
+async function getSmtpTransporter() {
+  if (_smtpTransporter) return _smtpTransporter;
+
+  const nm     = await import("nodemailer");
+  const mailer = nm.default ?? nm;
+  const { host, port, user, pass } = config.email.smtp;
 
   if (!host || !user || !pass) {
     throw new Error(
-      "SMTP not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS in your .env"
+      "SMTP not configured. Set SMTP_HOST, SMTP_USER, SMTP_PASS in your .env"
     );
   }
 
-  return mailer.createTransport({
+  _smtpTransporter = mailer.createTransport({
     host,
     port,
-    secure: port === 465,   // true for 465 (SSL), false for 587 (STARTTLS)
+    secure: port === 465,
     auth: { user, pass },
-    tls: { rejectUnauthorized: false }, // works even without a domain
+    tls: { rejectUnauthorized: false },
+    pool: true,          // reuse connections
+    maxConnections: 3,   // don't spam Gmail
   });
+
+  return _smtpTransporter;
 }
 
-/**
- * Verify the SMTP connection — call from /api/email/test-smtp
- */
 export async function testSmtpConnection() {
   try {
-    const transporter = await getSmtpTransporter();
-    await transporter.verify();
+    const t = await getSmtpTransporter();
+    await t.verify();
     return { ok: true, message: "SMTP connection verified ✓" };
   } catch (err) {
     return { ok: false, error: err.message };
   }
 }
 
+// ─── Brevo single send ────────────────────────────────────────────────────────
+async function sendViaBrevo({ to, toName, subject, htmlBody, fromName, fromEmail, attachments = [] }) {
+  const brevoKey = _runtime.brevoKey || config.email.brevoKey;
+  if (!brevoKey) throw new Error("BREVO_API_KEY not configured");
+
+  const body = {
+    sender:      { name: fromName, email: fromEmail },
+    to:          [{ email: to, name: toName || "" }],
+    subject,
+    htmlContent: htmlBody,
+  };
+
+  if (attachments.length) {
+    body.attachment = attachments.map((a) => ({
+      name:    a.filename,
+      content: a.content, // base64
+    }));
+  }
+
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json", "api-key": brevoKey },
+    body:    JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Brevo: ${err?.message || res.status}`);
+  }
+
+  return { provider: "brevo" };
+}
+
+// ─── SMTP single send ─────────────────────────────────────────────────────────
+async function sendViaSmtp({ to, toName, subject, htmlBody, fromName, fromEmail, attachments = [] }) {
+  const transporter = await getSmtpTransporter();
+
+  const mailOpts = {
+    from:    `"${fromName}" <${fromEmail}>`,
+    to:      toName ? `"${toName}" <${to}>` : to,
+    subject,
+    html:    htmlBody,
+  };
+
+  if (attachments.length) {
+    mailOpts.attachments = attachments.map((a) => ({
+      filename:    a.filename,
+      content:     Buffer.from(a.content, "base64"),
+      contentType: a.contentType || "application/octet-stream",
+    }));
+  }
+
+  await transporter.sendMail(mailOpts);
+  return { provider: "smtp" };
+}
+
+// ─── Main send — Brevo first, SMTP fallback ───────────────────────────────────
 /**
- * Sends a single email.
+ * Send a single email.
  * @param {object} opts
- * @param {string}   opts.to
- * @param {string}   [opts.toName]
- * @param {string}   opts.subject
- * @param {string}   opts.htmlBody
- * @param {string}   [opts.fromName]
- * @param {string}   [opts.fromEmail]
- * @param {Array}    [opts.attachments]  — [{ filename, content (base64 string), contentType }]
+ * @param {string} opts.to
+ * @param {string} [opts.toName]
+ * @param {string} opts.subject
+ * @param {string} opts.htmlBody
+ * @param {string} [opts.fromName]
+ * @param {string} [opts.fromEmail]
+ * @param {Array}  [opts.attachments]  [{ filename, content (base64), contentType }]
  */
 async function send({ to, toName, subject, htmlBody, fromName, fromEmail, attachments = [] }) {
   fromName  = fromName  || config.email.fromName;
   fromEmail = fromEmail || config.email.fromAddress;
 
-  const provider  = _runtime.provider  || config.email.provider;
-  const resendKey = _runtime.resendKey || config.email.resendKey;
-  const brevoKey  = _runtime.brevoKey  || config.email.brevoKey;
-  const sesUrl    = _runtime.sesUrl    || config.email.sesUrl;
-  const sesKey    = _runtime.sesKey    || config.email.sesKey;
+  const provider  = _runtime.provider || config.email.provider;
+  const brevoKey  = _runtime.brevoKey || config.email.brevoKey;
+  const smtpReady = !!(config.email.smtp.host && config.email.smtp.user && config.email.smtp.pass);
 
-  // ── Resend ────────────────────────────────────────────────
+  const opts = { to, toName, subject, htmlBody, fromName, fromEmail, attachments };
+
+  // ── Dual mode: Brevo → SMTP fallback ─────────────────────────────────────
+  if (provider === "brevo+smtp" || (!provider && brevoKey)) {
+    if (brevoKey) {
+      try {
+        return await sendViaBrevo(opts);
+      } catch (err) {
+        console.warn(`[emailService] Brevo failed (${err.message}), falling back to SMTP…`);
+        if (smtpReady) return await sendViaSmtp(opts);
+        throw err; // no fallback available
+      }
+    }
+    if (smtpReady) return await sendViaSmtp(opts);
+  }
+
+  // ── Brevo-only ────────────────────────────────────────────────────────────
+  if (provider === "brevo" && brevoKey) {
+    return await sendViaBrevo(opts);
+  }
+
+  // ── SMTP-only ─────────────────────────────────────────────────────────────
+  if (provider === "smtp" && smtpReady) {
+    return await sendViaSmtp(opts);
+  }
+
+  // ── Resend (kept for backward compat) ─────────────────────────────────────
+  const resendKey = _runtime.resendKey || config.email.resendKey;
   if (provider === "resend" && resendKey) {
     const body = {
       from: `${fromName} <${fromEmail}>`,
-      to: [to],
+      to:   [to],
       subject,
       html: htmlBody,
     };
-    // Resend supports attachments natively
     if (attachments.length) {
-      body.attachments = attachments.map(a => ({
-        filename: a.filename,
-        content:  a.content, // base64 string
-      }));
+      body.attachments = attachments.map((a) => ({ filename: a.filename, content: a.content }));
     }
     const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
-      body: JSON.stringify(body),
+      body:    JSON.stringify(body),
     });
     if (!res.ok) {
       const e = await res.json().catch(() => ({}));
@@ -111,76 +206,113 @@ async function send({ to, toName, subject, htmlBody, fromName, fromEmail, attach
     return { provider: "resend" };
   }
 
-  // ── Brevo ─────────────────────────────────────────────────
-  if (provider === "brevo" && brevoKey) {
-    const body = {
-      sender:      { name: fromName, email: fromEmail },
-      to:          [{ email: to, name: toName }],
-      subject,
-      htmlContent: htmlBody,
-    };
-    if (attachments.length) {
-      body.attachment = attachments.map(a => ({
-        name:    a.filename,
-        content: a.content, // base64
-      }));
-    }
-    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "api-key": brevoKey },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error(`Brevo: ${res.status}`);
-    return { provider: "brevo" };
-  }
-
-  // ── SES (custom endpoint) ─────────────────────────────────
-  if ((provider === "ses" || sesUrl) && sesUrl) {
-    const res = await fetch(sesUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(sesKey ? { "x-api-key": sesKey } : {}),
-      },
-      body: JSON.stringify({ to, toName, subject, htmlBody, fromName, fromEmail, attachments }),
-    });
-    if (!res.ok) throw new Error(`SES endpoint: ${res.status}`);
-    return { provider: "ses" };
-  }
-
-  // ── Gmail SMTP (nodemailer) ────────────────────────────────
-  // Works with EMAIL_PROVIDER=smtp and SMTP_HOST=smtp.gmail.com
-  if (provider === "smtp" && config.email.smtp.host) {
-    const transporter = await getSmtpTransporter();
-
-    const mailOpts = {
-      from:    `"${fromName}" <${fromEmail}>`,
-      to:      toName ? `"${toName}" <${to}>` : to,
-      subject,
-      html:    htmlBody,
-    };
-
-    // Add file attachments when present
-    if (attachments.length) {
-      mailOpts.attachments = attachments.map(a => ({
-        filename:    a.filename,
-        content:     Buffer.from(a.content, "base64"),
-        contentType: a.contentType || "application/octet-stream",
-      }));
-    }
-
-    await transporter.sendMail(mailOpts);
-    return { provider: "smtp" };
-  }
-
-  // ── Mock fallback ──────────────────────────────────────────
-  console.log(`[EVENOVA MOCK EMAIL] To: ${to} | Subject: ${subject} | Attachments: ${attachments.length}`);
+  // ── Mock fallback ─────────────────────────────────────────────────────────
+  console.log(`[EVENOVA MOCK EMAIL] To: ${to} | Subject: ${subject}`);
   return { provider: "mock" };
 }
 
-// ────────────────────────────────────────────────────────────
-// Ticket email (unchanged)
-// ────────────────────────────────────────────────────────────
+// ─── Bulk blast via Brevo (most efficient for many recipients) ────────────────
+/**
+ * Send to many recipients using Brevo.
+ * Each email is personalised with {name}, {email}, {company} placeholders.
+ * Falls back to SMTP per-recipient if Brevo is unavailable.
+ *
+ * @param {Array}  recipients  [{ email, name, company }]
+ * @param {string} subject
+ * @param {string} htmlBody    — supports {name}, {email}, {company}
+ * @param {string} [fromName]
+ * @param {string} [fromEmail]
+ * @param {Array}  [attachments]
+ * @param {number} [delayMs]   — ms between sends (default 300ms for Brevo, 5000ms for SMTP)
+ */
+async function blast({
+  recipients,
+  subject,
+  htmlBody,
+  fromName,
+  fromEmail,
+  attachments = [],
+  delayMs,
+}) {
+  fromName  = fromName  || config.email.fromName;
+  fromEmail = fromEmail || config.email.fromAddress;
+
+  const brevoKey  = _runtime.brevoKey || config.email.brevoKey;
+  const smtpReady = !!(config.email.smtp.host && config.email.smtp.user && config.email.smtp.pass);
+  const useBrevo  = !!brevoKey;
+
+  // Default delay: Brevo allows ~10 req/s, SMTP Gmail allows ~1/s
+  const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+  const defaultDelay = useBrevo ? 200 : 5000;
+  const waitMs = delayMs ?? defaultDelay;
+
+  const results = {
+    sent: 0,
+    failed: 0,
+    total: recipients.length,
+    provider: useBrevo ? "brevo" : smtpReady ? "smtp" : "mock",
+    errors: [],
+  };
+
+  for (let i = 0; i < recipients.length; i++) {
+    const rec = recipients[i];
+
+    const personalised = htmlBody
+      .replace(/{name}/g,    rec.name    || "")
+      .replace(/{email}/g,   rec.email   || "")
+      .replace(/{company}/g, rec.company || "");
+
+    const personalisedSubject = subject
+      .replace(/{name}/g,    rec.name    || "")
+      .replace(/{company}/g, rec.company || "");
+
+    try {
+      const opts = {
+        to:          rec.email,
+        toName:      rec.name,
+        subject:     personalisedSubject,
+        htmlBody:    personalised,
+        fromName,
+        fromEmail,
+        attachments,
+      };
+
+      if (useBrevo) {
+        try {
+          await sendViaBrevo(opts);
+        } catch (brevoErr) {
+          console.warn(`[blast] Brevo failed for ${rec.email}, trying SMTP…`);
+          if (smtpReady) {
+            await sendViaSmtp(opts);
+            results.provider = "smtp"; // at least one went via SMTP
+          } else {
+            throw brevoErr;
+          }
+        }
+      } else if (smtpReady) {
+        await sendViaSmtp(opts);
+      } else {
+        console.log(`[MOCK BLAST] To: ${rec.email} | Subject: ${personalisedSubject}`);
+      }
+
+      results.sent++;
+      console.log(`[blast] ✓ [${i + 1}/${recipients.length}] ${rec.name || rec.email}`);
+    } catch (err) {
+      results.failed++;
+      if (results.errors.length < 10) {
+        results.errors.push({ email: rec.email, error: err.message });
+      }
+      console.error(`[blast] ✗ ${rec.email}:`, err.message);
+    }
+
+    if (i < recipients.length - 1) await delay(waitMs);
+  }
+
+  console.log(`[blast] Done — ${results.sent} sent, ${results.failed} failed`);
+  return results;
+}
+
+// ─── Ticket email (unchanged) ─────────────────────────────────────────────────
 function buildTicketHtml(ticket, event, ticketType) {
   const color = ticketType?.color || "#7c3aed";
   return `<!DOCTYPE html>
@@ -229,8 +361,10 @@ async function sendTicketEmail(ticket, recipientEmail, event, ticketType) {
   });
 }
 
+// ─── Exports ──────────────────────────────────────────────────────────────────
 export const emailService = {
   send,
+  blast,
   sendTicketEmail,
   buildTicketHtml,
   configure:   configureEmail,

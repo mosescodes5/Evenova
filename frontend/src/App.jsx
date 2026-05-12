@@ -45,9 +45,9 @@ export default function App() {
   const [events, setEvents]             = useState([]);
   const [scanned, setScanned]           = useState({});
   const [scanLogs, setScanLogs]         = useState([]);
-  const [view, setView]                 = useState("landing");
+  const [view, setView]                 = useState(() => storGet(KEYS.VIEW, "landing"));
   const [evParam, setEvParam]           = useState(null);
-  const [user, setUser]                 = useState(null);
+  const [user, setUser]                 = useState(() => storGet(KEYS.USER, null));
   const [toasts, setToasts]             = useState([]);
   const [offline, setOffline]           = useState(false);
   const [verifyTarget, setVerifyTarget] = useState(null);
@@ -84,6 +84,10 @@ export default function App() {
     init();
   }, []);
 
+  // ── Persist session to survive refresh ───────────────────
+  useEffect(() => { storSet(KEYS.USER, user); }, [user]);
+  useEffect(() => { storSet(KEYS.VIEW, view); }, [view]);
+
   // ── Scan cache persisted locally (offline support) ────────
   useEffect(() => { storSet(KEYS.SCANNED, scanned); }, [scanned]);
 
@@ -96,7 +100,7 @@ export default function App() {
 
   const removeToast = id => setToasts(t => t.filter(x => x.id !== id));
   const nav = useCallback((v, param = null) => { setView(v); setEvParam(param); }, []);
-  const logout = () => { setUser(null); setView("landing"); };
+  const logout = () => { setUser(null); setView("landing"); storSet(KEYS.USER, null); storSet(KEYS.VIEW, "landing"); };
   const getOrg = useCallback(u => organizers.find(o => o.id === (u?.id || u?.orgId)), [organizers]);
 
   // ── Send verification email ───────────────────────────────
