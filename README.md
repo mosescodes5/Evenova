@@ -1,0 +1,254 @@
+# Evenova 🎟
+
+> Professional event ticketing & management platform — built for Nigeria, ready for Africa.
+
+---
+
+## What's inside
+
+```
+evenova/
+├── frontend/                # React 19 + Vite — public site & dashboard
+│   ├── src/
+│   │   ├── App.jsx          # Root component — all routing & global state
+│   │   ├── main.jsx         # React DOM entry point
+│   │   ├── styles/
+│   │   │   ├── theme.js     # Design tokens (colors, gradients, banners)
+│   │   │   └── StyleInjector.jsx  # Injects global CSS at runtime
+│   │   ├── utils/
+│   │   │   ├── crypto.js    # Ticket signing — djb2, encodeTicket, verifyQR
+│   │   │   ├── storage.js   # Persistent key-value store helpers
+│   │   │   ├── export.js    # CSV export (attendees, scan logs)
+│   │   │   ├── email.js     # Client-side email (Resend / SES / Brevo / mock)
+│   │   │   └── payment.js   # Paystack & Flutterwave checkout helpers
+│   │   ├── data/
+│   │   │   └── seedData.js  # Demo events, organizers, tickets
+│   │   ├── hooks/
+│   │   │   └── useMedia.js  # Responsive breakpoint hook
+│   │   ├── components/
+│   │   │   ├── ui/
+│   │   │   │   └── index.jsx  # Btn, Inp, Card, Bdg, StatCard, Toast, Modal, QRDisplay
+│   │   │   ├── LoadingScreen.jsx
+│   │   │   ├── PublicHeader.jsx
+│   │   │   ├── PublicFooter.jsx
+│   │   │   └── AppNav.jsx
+│   │   └── pages/
+│   │       ├── Landing.jsx
+│   │       ├── About.jsx
+│   │       ├── Contact.jsx
+│   │       ├── Explore.jsx
+│   │       ├── PublicEventPage.jsx
+│   │       ├── Register.jsx
+│   │       ├── Login.jsx
+│   │       ├── admin/
+│   │       │   ├── AdminDash.jsx
+│   │       │   ├── AdminRevenue.jsx
+│   │       │   ├── AdminScanLogView.jsx
+│   │       │   ├── AdminOrgs.jsx
+│   │       │   └── EmailBlast.jsx
+│   │       └── organizer/
+│   │           ├── OrgDashboard.jsx
+│   │           ├── CreateEvent.jsx
+│   │           ├── EventDetail.jsx
+│   │           ├── RevenueDashboard.jsx
+│   │           ├── ScanLog.jsx
+│   │           ├── TeamManagement.jsx
+│   │           ├── Scanner.jsx
+│   │           └── LiveDashboard.jsx
+│   ├── public/
+│   │   ├── favicon.svg
+│   │   └── icons.svg
+│   ├── index.html
+│   ├── vite.config.js
+│   └── package.json
+│
+├── backend/                 # Node.js 18 + Express API
+│   ├── src/
+│   │   ├── index.js         # Express entry point
+│   │   ├── config.js        # All config from environment variables
+│   │   ├── routes/
+│   │   │   ├── auth.js      # POST /api/auth/login|register|logout
+│   │   │   ├── events.js    # CRUD /api/events
+│   │   │   ├── tickets.js   # POST /api/tickets/purchase|scan|manual
+│   │   │   └── webhooks.js  # POST /api/webhooks/paystack|flutterwave
+│   │   ├── services/
+│   │   │   ├── emailService.js   # Send transactional emails
+│   │   │   └── ticketService.js  # Create & validate signed tickets
+│   │   ├── middleware/
+│   │   │   ├── auth.js       # requireAuth, requireAdmin, requireOrganizer
+│   │   │   └── rateLimiter.js
+│   │   └── functions/
+│   │       └── emailBlast.js # AWS Lambda handler for bulk email
+│   ├── .env.example
+│   └── package.json
+│
+├── shared/                  # Shared between frontend and backend
+│   ├── utils/
+│   │   └── crypto.js        # Ticket signing algorithm
+│   └── types/
+│       └── index.js         # JSDoc type definitions
+│
+├── .gitignore
+├── package.json             # Monorepo root with concurrently scripts
+└── README.md
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+- Node.js ≥ 18
+- npm ≥ 9 (or pnpm / yarn)
+
+### 1. Clone & install
+
+```bash
+git clone https://github.com/your-org/evenova.git
+cd evenova
+
+# Install all workspaces at once
+npm run install:all
+```
+
+### 2. Configure environment variables
+
+```bash
+# Backend
+cp backend/.env.example backend/.env
+# Open backend/.env and fill in your values (see sections below)
+```
+
+### 3. Start development servers
+
+```bash
+# Both frontend (port 5173) and backend (port 4000) together:
+npm run dev
+
+# Or individually:
+npm run dev:frontend
+npm run dev:backend
+```
+
+---
+
+## Environment Variables Guide
+
+### Email — choose one provider
+
+| Provider | Required vars | Notes |
+|----------|--------------|-------|
+| **Resend** (recommended) | `RESEND_API_KEY` | Set `EMAIL_PROVIDER=resend`. Free tier: 100 emails/day |
+| **AWS SES** | `SES_ENDPOINT_URL`, `SES_API_KEY` | Requires API Gateway + Lambda (see `backend/src/functions/emailBlast.js`) |
+| **Brevo** | `BREVO_API_KEY` | Set `EMAIL_PROVIDER=brevo`. 300 emails/day free |
+| **SMTP** | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Works with Gmail, Zoho, etc. |
+| **Mock** | — | Default. Logs emails to console — great for development |
+
+### Payments
+
+**Paystack** (easiest for Nigeria):
+1. Sign up at [paystack.com](https://paystack.com)
+2. Copy your Test keys from Settings → API Keys
+3. Set `PAYSTACK_SECRET_KEY` and `PAYSTACK_PUBLIC_KEY` in `backend/.env`
+4. Set `PAYSTACK_PUBLIC_KEY` in `frontend/.env.local` too (used in `utils/payment.js`)
+
+**Flutterwave** (multi-currency):
+1. Sign up at [flutterwave.com](https://flutterwave.com)
+2. Get keys from Dashboard → Settings → API
+3. Set `FLW_SECRET_KEY`, `FLW_PUBLIC_KEY`, `FLW_SECRET_HASH`
+
+### Ticket Signing Security
+
+The `TICKET_SECRET` in your backend `.env` **must match** the `SECRET` constant in `frontend/src/utils/crypto.js`. In production:
+1. Generate a strong random string: `openssl rand -hex 32`
+2. Set it as `TICKET_SECRET` in `backend/.env`
+3. Replace the hardcoded `"EVENOVA_PRIME_NG_2025"` in `frontend/src/utils/crypto.js` with the same value, or better — load it from a build-time env variable via Vite: `import.meta.env.VITE_TICKET_SECRET`
+
+---
+
+## Database Setup
+
+The backend services contain `// TODO: DB` stubs. Wire them up to your preferred database:
+
+### Option A — PostgreSQL (recommended for production)
+
+```bash
+npm install pg drizzle-orm
+```
+
+Key tables: `organizers`, `events`, `gates`, `ticket_types`, `tickets`, `scan_logs`, `staff`
+
+### Option B — MongoDB
+
+```bash
+npm install mongoose
+```
+
+### Option C — Supabase / PlanetScale / Neon (hosted)
+
+Set `DATABASE_URL` to your hosted connection string. No local DB needed.
+
+---
+
+## Deployment
+
+### Frontend — Vercel / Netlify
+
+```bash
+cd frontend
+npm run build
+# Upload dist/ to Vercel, Netlify, or any static host
+```
+
+Set these environment variables in your hosting dashboard:
+```
+VITE_API_URL=https://api.evenova.ng
+VITE_PAYSTACK_PUBLIC_KEY=pk_live_...
+```
+
+### Backend — Railway / Render / Fly.io
+
+```bash
+cd backend
+# Set all env vars in your platform dashboard
+# Start command: node src/index.js
+```
+
+### AWS Lambda (email blast function)
+
+The `backend/src/functions/emailBlast.js` is ready to deploy as a Lambda:
+```bash
+zip -r function.zip backend/src/functions/emailBlast.js node_modules/aws-sdk
+aws lambda update-function-code --function-name evenova-email --zip-file fileb://function.zip
+```
+
+---
+
+## User Roles
+
+| Role | Login | Access |
+|------|-------|--------|
+| **Admin** | `admin@evenova.ng` / `AdminPass#2025` | All organizers, all events, revenue, scan logs, email blasts |
+| **Organizer** | `amara@amaraevents.ng` / `Amara@Ev3nt$24` | Own events, team, scanner, revenue |
+| **Staff** | `kalu@amaraevents.ng` / `Kalu#Gate01` | Scanner only (can also view Live Dashboard) |
+
+---
+
+## Architecture Notes
+
+- **Ticket signing** uses a DJB2 hash (`eId|tId|uId|SIG_HASH`). Tickets are signed at creation and verified offline at scan time — no network call required for gate validation.
+- **Offline scanning** is supported: `Scanner.jsx` validates QR codes locally using `utils/crypto.js`. Staff can cache event data and scan without internet.
+- **Email provider** is selected at runtime via `window._evEmailCfg` on the frontend and `config.email.provider` on the backend — no code change needed to switch providers.
+- **Payments**: Paystack and Flutterwave SDKs are loaded dynamically (no bundle bloat). Webhook verification is handled in `backend/src/routes/webhooks.js`.
+
+---
+
+## Contributing
+
+1. Fork → create a feature branch → PR
+2. Follow the existing code style (no TypeScript, JSDoc for types)
+3. Run `npm run lint` before submitting
+
+---
+
+Built with ❤️ in Lagos.
