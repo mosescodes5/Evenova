@@ -24,7 +24,8 @@ export const config = {
     resendKey:   process.env.RESEND_API_KEY || "",
     sesUrl:      process.env.SES_ENDPOINT_URL || "",
     sesKey:      process.env.SES_API_KEY || "",
-    brevoKey:    process.env.BREVO_API_KEY || "",
+    brevoKey:       process.env.BREVO_API_KEY      || "",
+    mailersendKey:  process.env.MAILERSEND_API_KEY || "",
     smtp: {
       host: process.env.SMTP_HOST || "",
       port: parseInt(process.env.SMTP_PORT || "587", 10),

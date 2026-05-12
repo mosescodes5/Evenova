@@ -9,7 +9,8 @@ import authRoutes    from "./routes/auth.js";
 import eventRoutes   from "./routes/events.js";
 import ticketRoutes  from "./routes/tickets.js";
 import webhookRoutes from "./routes/webhooks.js";
-import emailRoutes   from "./routes/email.js";
+import emailRoutes     from "./routes/email.js";
+import whatsappRoutes  from "./routes/whatsapp.js";
 
 const app = express();
 
@@ -36,7 +37,8 @@ app.use("/api/auth",     authRoutes);
 app.use("/api/events",   eventRoutes);
 app.use("/api/tickets",  ticketRoutes);
 app.use("/api/webhooks", webhookRoutes);
-app.use("/api/email",    emailRoutes);
+app.use("/api/email",     emailRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
 
 // ── 404 ─────────────────────────────────────────────────────
 app.use((_req, res) => {

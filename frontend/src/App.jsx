@@ -116,7 +116,7 @@ export default function App() {
             <p style="color:#94a3b8;font-size:13px;">This code expires in 30 minutes. If you didn't register on Evenova, ignore this email.</p>
           </div>`,
         fromName: "Evenova",
-        fromEmail: "onboarding@resend.dev",
+        fromEmail: "hello.evenova@gmail.com",
       });
     } catch {
       console.log(`[Evenova] Verification code for ${org.email}: ${code}`);
@@ -142,7 +142,7 @@ export default function App() {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const newOrg = {
       ...data,
-      status: "approved",
+      status: "pending",
       verifyCode: code,
       verifyExpiry: Date.now() + 30 * 60 * 1000,
     };
@@ -198,7 +198,7 @@ export default function App() {
           <p style="color:#94a3b8;font-size:13px;">This code expires in 30 minutes. If you didn't request this, ignore this email.</p>
         </div>`,
         fromName: "Evenova",
-        fromEmail: "onboarding@resend.dev",
+        fromEmail: "hello.evenova@gmail.com",
       });
     } catch {
       console.log(`[Evenova] Password reset code for ${email}: ${code}`);
