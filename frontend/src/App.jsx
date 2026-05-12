@@ -27,6 +27,7 @@ import AdminRevenue from "./pages/admin/AdminRevenue.jsx";
 import AdminScanLogView from "./pages/admin/AdminScanLogView.jsx";
 import AdminOrgs from "./pages/admin/AdminOrgs.jsx";
 import EmailBlast from "./pages/admin/EmailBlast.jsx";
+import WhatsAppBlast from "./pages/admin/whatsappblast.jsx";
 
 import OrgDashboard from "./pages/organizer/OrgDashboard.jsx";
 import CreateEvent from "./pages/organizer/CreateEvent.jsx";
@@ -403,8 +404,9 @@ export default function App() {
       if (view === "admin-orgs")     return <AdminOrgs organizers={organizers} onApprove={approveOrg} onReject={rejectOrg} />;
       if (view === "admin-revenue")  return <AdminRevenue organizers={organizers} events={events} />;
       if (view === "admin-scan-log") return <AdminScanLogView scanLogs={scanLogs} events={events} organizers={organizers} />;
-      if (view === "email-blast")    return <EmailBlast org={null} events={events} user={user} notify={notify} />;
-      if (view === "sponsor-blast")  return <SponsorBlast org={null} user={user} notify={notify} />;
+      if (view === "email-blast")     return <EmailBlast org={null} events={events} user={user} notify={notify} />;
+      if (view === "whatsapp-blast")  return <WhatsAppBlast user={user} notify={notify} />;
+      if (view === "sponsor-blast")   return <SponsorBlast org={null} user={user} notify={notify} />;
       if (view === "admin-events")   return (
         <div style={{ maxWidth:1000, margin:"0 auto", padding:32 }}>
           <h1 className="outfit" style={{ fontSize:26, fontWeight:800, color:T.text, marginBottom:24 }}>All Events</h1>
@@ -474,6 +476,7 @@ export default function App() {
       revenue:       <RevenueDashboard events={events} orgId={activeOrg.id} />,
       "scan-log":    <ScanLog scanLogs={scanLogs} events={events} orgId={activeOrg.id} />,
       "email-blast": <EmailBlast org={activeOrg} events={events} user={user} notify={notify} />,
+      "whatsapp-blast": <WhatsAppBlast user={user} notify={notify} />,
       "sponsor-blast": <SponsorBlast org={activeOrg} user={user} notify={notify} />,
       "account-settings": <AccountSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
     };

@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { Activity, BarChart3, Briefcase, Building, Calendar, DollarSign, LayoutDashboard, LogOut, Menu, Scan, Sparkles, List, Users, Zap } from "lucide-react";
+import { Activity, BarChart3, Briefcase, Building, Calendar, DollarSign, LayoutDashboard, LogOut, Menu, MessageCircle, Scan, Sparkles, List, Users, Zap } from "lucide-react";
 import { GA, T } from "../styles/theme.js";
 import { useMedia } from "../hooks/useMedia.js";
 
 export default function AppNav({ user, onNav, onLogout }) {
   const [mOpen, setMOpen] = useState(false);
   const { mobile } = useMedia();
-  const orgLinks    = [["dashboard","Dashboard",LayoutDashboard],["events","Events",Calendar],["revenue","Revenue",BarChart3],["team","Team",Users],["scanner","Scanner",Scan],["live","Live",Activity],["scan-log","Scan Log",List],["email-blast","Email Blast",Zap]];
+  const orgLinks    = [["dashboard","Dashboard",LayoutDashboard],["events","Events",Calendar],["revenue","Revenue",BarChart3],["team","Team",Users],["scanner","Scanner",Scan],["live","Live",Activity],["scan-log","Scan Log",List],["email-blast","Email Blast",Zap],["whatsapp-blast","WhatsApp",MessageCircle]];
   const staffLinks  = [["scanner","Scanner",Scan],["live","Live",Activity]];
-  const adminLinks  = [["admin","Dashboard",LayoutDashboard],["admin-orgs","Organizers",Building],["admin-events","Events",Calendar],["admin-revenue","Revenue",DollarSign],["admin-scan-log","Scan Log",List],["email-blast","Email Blast",Zap],["sponsor-blast","Sponsors",Briefcase]];
+  const adminLinks  = [["admin","Dashboard",LayoutDashboard],["admin-orgs","Organizers",Building],["admin-events","Events",Calendar],["admin-revenue","Revenue",DollarSign],["admin-scan-log","Scan Log",List],["email-blast","Email Blast",Zap],["whatsapp-blast","WhatsApp",MessageCircle],["sponsor-blast","Sponsors",Briefcase]];
   const links = user?.role==="admin"?adminLinks : user?.role==="organizer"?orgLinks:staffLinks;
 
   return (
