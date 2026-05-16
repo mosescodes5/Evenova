@@ -4,17 +4,18 @@ import { supabase } from "./supabase.js";
    DB uses snake_case columns; app uses camelCase objects.
 ──────────────────────────────────────────────────────────── */
 const toOrg = (r) => ({
-  id:           r.id,
-  name:         r.name,
-  contactName:  r.contact_name,
-  email:        r.email,
-  phone:        r.phone,
-  status:       r.status,
-  teamSize:     r.team_size,
-  password:     r.password,
-  verifyCode:   r.verify_code,
-  verifyExpiry: r.verify_expiry,
-  staff:        r.staff ?? [],
+  id:            r.id,
+  name:          r.name,
+  contactName:   r.contact_name,
+  email:         r.email,
+  phone:         r.phone,
+  status:        r.status,
+  teamSize:      r.team_size,
+  password:      r.password,
+  verifyCode:    r.verify_code,
+  verifyExpiry:  r.verify_expiry,
+  staff:         r.staff         ?? [],
+  paymentConfig: r.payment_config ?? null,
 });
 
 const fromOrg = (o) => ({
@@ -26,9 +27,10 @@ const fromOrg = (o) => ({
   status:         o.status,
   team_size:      o.teamSize,
   password:       o.password,
-  verify_code:    o.verifyCode   ?? null,
-  verify_expiry:  o.verifyExpiry ?? null,
-  staff:          o.staff        ?? [],
+  verify_code:    o.verifyCode    ?? null,
+  verify_expiry:  o.verifyExpiry  ?? null,
+  staff:          o.staff         ?? [],
+  payment_config: o.paymentConfig ?? null,
 });
 
 const toEvent = (r) => ({

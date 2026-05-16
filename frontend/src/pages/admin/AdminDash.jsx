@@ -1,4 +1,4 @@
-import { BarChart3, Bell, Building, ChevronRight, DollarSign, List, Scan, Ticket } from "lucide-react";
+import { BarChart3, Bell, Building, ChevronRight, DollarSign, List, MessageCircle, Scan, Ticket, Zap } from "lucide-react";
 import { T } from "../../styles/theme.js";
 import { Bdg, Btn, Card, StatCard } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
@@ -41,7 +41,9 @@ export default function AdminDash({ organizers, events, scanLogs, onNav }) {
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <Btn sz="sm" v="secondary" onClick={()=>onNav("admin-orgs")}><Building size={13}/>Organizers</Btn>
           <Btn sz="sm" v="secondary" onClick={()=>onNav("admin-revenue")}><BarChart3 size={13}/>Revenue</Btn>
-          <Btn sz="sm" onClick={()=>onNav("admin-scan-log")}><List size={13}/>Scan Logs</Btn>
+          <Btn sz="sm" v="secondary" onClick={()=>onNav("admin-scan-log")}><List size={13}/>Scan Logs</Btn>
+          <Btn sz="sm" v="secondary" onClick={()=>onNav("email-blast")}><Zap size={13}/>Email Blast</Btn>
+          <Btn sz="sm" onClick={()=>onNav("whatsapp-blast")}><MessageCircle size={13}/>WhatsApp</Btn>
         </div>
       </div>
 

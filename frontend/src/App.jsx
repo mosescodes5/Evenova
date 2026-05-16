@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { AnimatePresence } from "framer-motion";
 import { T, EVENT_BANNERS } from "./styles/theme.js";
 import StyleInjector from "./styles/StyleInjector.jsx";
 import { genId } from "./utils/crypto.js";
@@ -12,7 +13,8 @@ import PublicHeader from "./components/PublicHeader.jsx";
 import PublicFooter from "./components/PublicFooter.jsx";
 import AppNav from "./components/AppNav.jsx";
 
-import Landing from "./pages/Landing.jsx";
+import Landing from './pages/Landing.jsx';
+import HowItWorks from './pages/HowItWorks.jsx';
 import About from "./pages/About.jsx";
 import Contact from "./pages/Contact.jsx";
 import Explore from "./pages/Explore.jsx";
@@ -39,6 +41,7 @@ import Scanner from "./pages/organizer/Scanner.jsx";
 import SponsorBlast from "./pages/organizer/SponsorBlast.jsx";
 import LiveDashboard from "./pages/organizer/LiveDashboard.jsx";
 import AccountSettings from "./pages/organizer/AccountSettings.jsx";
+import PaymentSettings from "./pages/organizer/PaymentSettings.jsx";
 
 export default function App() {
   const [loading, setLoading]           = useState(true);
@@ -55,7 +58,7 @@ export default function App() {
   const [registerError, setRegisterError]   = useState("");
   const [registerLoading, setRegisterLoading] = useState(false);
   const [forgotLoading, setForgotLoading]     = useState(false);
-  const [forgotTarget, setForgotTarget]       = useState(null); // {email, code}
+  const [forgotTarget, setForgotTarget]       = useState(null);
 
   // ── Load from Supabase on mount ───────────────────────────
   useEffect(() => {
@@ -71,7 +74,7 @@ export default function App() {
         setOrgs(orgs);
         setEvents(evs);
         setScanLogs(logs);
-        setScanned(storGet(KEYS.SCANNED, {})); // scan cache stays local
+        setScanned(storGet(KEYS.SCANNED, {}));
       } catch (e) {
         console.error("Supabase load failed, falling back to localStorage", e);
         setOrgs(storGet(KEYS.ORGS, DEFAULT_ORGS));
@@ -88,8 +91,6 @@ export default function App() {
   // ── Persist session to survive refresh ───────────────────
   useEffect(() => { storSet(KEYS.USER, user); }, [user]);
   useEffect(() => { storSet(KEYS.VIEW, view); }, [view]);
-
-  // ── Scan cache persisted locally (offline support) ────────
   useEffect(() => { storSet(KEYS.SCANNED, scanned); }, [scanned]);
 
   // ── Helpers ───────────────────────────────────────────────
@@ -132,7 +133,6 @@ export default function App() {
   const handleRegister = async (data) => {
     setRegisterError("");
     setRegisterLoading(true);
-    // Check for duplicate email
     try {
       const existing = await db.getOrganizerByEmail(data.email);
       if (existing) {
@@ -171,12 +171,11 @@ export default function App() {
     nav("verify-email");
   };
 
-  // ── Forgot password — send reset code ────────────────────
+  // ── Forgot password ───────────────────────────────────────
   const handleForgotSend = async (email, onSent) => {
     setForgotLoading(true);
     const org = organizers.find(o => o.email === email);
     if (!org) {
-      // For security, don't reveal whether the email exists — just say "if it exists, code was sent"
       notify("If that email is registered, a reset code has been sent.", "info");
       setForgotLoading(false);
       onSent?.();
@@ -184,7 +183,6 @@ export default function App() {
     }
     const code = String(Math.floor(100000 + Math.random() * 900000));
     setForgotTarget({ email, orgId: org.id, code });
-    // Save code to DB so it survives a page refresh
     try {
       await db.saveOrganizer({ ...org, verifyCode: code, verifyExpiry: Date.now() + 30 * 60 * 1000 });
       setOrgs(os => os.map(o => o.id === org.id ? { ...o, verifyCode: code, verifyExpiry: Date.now() + 30 * 60 * 1000 } : o));
@@ -221,7 +219,6 @@ export default function App() {
     const expiry     = org.verifyExpiry;
     if (!storedCode || storedCode !== code) { notify("Incorrect code. Try again.", "error"); setForgotLoading(false); return; }
     if (expiry && Date.now() > expiry) { notify("Code expired. Please request a new one.", "error"); setForgotLoading(false); return; }
-    // Update password
     const updated = { ...org, password: newPassword, verifyCode: null, verifyExpiry: null };
     try {
       await db.saveOrganizer(updated);
@@ -244,6 +241,33 @@ export default function App() {
     await db.saveOrganizer(updated);
     setOrgs(os => os.map(o => o.id === updated.id ? updated : o));
   };
+
+  // ── Bank payment approve / reject ─────────────────────────
+  const handleApprovePayment = useCallback(async (eventId, ticketId) => {
+    setEvents(evs => evs.map(ev => {
+      if (ev.id !== eventId) return ev;
+      const updatedTickets = ev.tickets.map(t =>
+        t.id !== ticketId ? t : { ...t, status: "unused", paymentStatus: "paid" }
+      );
+      const updated = { ...ev, tickets: updatedTickets };
+      db.saveEvent(updated).catch(console.error);
+      return updated;
+    }));
+    notify("Payment approved — ticket issued and will be emailed!");
+  }, [notify]);
+
+  const handleRejectPayment = useCallback(async (eventId, ticketId) => {
+    setEvents(evs => evs.map(ev => {
+      if (ev.id !== eventId) return ev;
+      const updatedTickets = ev.tickets.map(t =>
+        t.id !== ticketId ? t : { ...t, status: "rejected", paymentStatus: "rejected" }
+      );
+      const updated = { ...ev, tickets: updatedTickets };
+      db.saveEvent(updated).catch(console.error);
+      return updated;
+    }));
+    notify("Payment rejected.", "error");
+  }, [notify]);
 
   const handleVerifyCode = (entered) => {
     if (!verifyTarget || entered !== verifyTarget.code) return false;
@@ -272,6 +296,9 @@ export default function App() {
 
   const handleLogin = u => {
     setUser(u);
+    // Expose payment config globally so PublicEventPage can read it
+    const org = organizers.find(o => o.id === (u?.id || u?.orgId));
+    if (org?.paymentConfig) window._evPayCfg = org.paymentConfig;
     nav(u.role === "admin" ? "admin" : u.role === "staff" ? "scanner" : "dashboard");
     notify(`Welcome back, ${u.name || u.contactName}!`);
   };
@@ -355,7 +382,7 @@ export default function App() {
   const org = user ? getOrg(user) : null;
   const ev  = events.find(e => e.id === evParam);
 
-  const PUBLIC_VIEWS = ["landing","explore","about","contact","public-event","register","login","verify-email","forgot-password"];
+  const PUBLIC_VIEWS = ["landing","explore","about","contact","how-it-works","public-event","register","login","verify-email","forgot-password"];
   const isPublic = !user || PUBLIC_VIEWS.includes(view);
 
   if (loading) return (
@@ -392,6 +419,7 @@ export default function App() {
     if (view === "register") return <Register onSubmit={handleRegister} onNav={v=>{setRegisterError("");nav(v);}} error={registerError} loading={registerLoading}/>;
     if (view === "login")    return <Login organizers={organizers} onLogin={handleLogin} onNav={nav} />;
     if (view === "forgot-password") return <ForgotPassword onSendCode={handleForgotSend} onVerifyReset={handleForgotVerify} onResendCode={(em,cb)=>handleForgotSend(em,cb)} onBack={()=>nav("login")} loading={forgotLoading}/>;
+    if (view === "how-it-works") return <HowItWorks onNav={nav} />;
     if (view === "about")    return <About onNav={nav} />;
     if (view === "contact")  return <Contact notify={notify} />;
     if (view === "explore")  return <Explore events={events} onEventPage={id => nav("public-event", id)} />;
@@ -463,13 +491,20 @@ export default function App() {
         </div>
       ),
       "create-event": <CreateEvent org={activeOrg} onSubmit={createEvent} onBack={() => nav("events")} />,
-      "event-detail": ev ? <EventDetail event={ev} onBack={() => nav("events")} onNav={nav} notify={notify}
+      "event-detail": ev ? <EventDetail
+        event={ev}
+        onBack={() => nav("events")}
+        onNav={nav}
+        notify={notify}
+        onApprovePayment={handleApprovePayment}
+        onRejectPayment={handleRejectPayment}
         onAddTicket={(evId, ticket) => setEvents(evs => evs.map(e => {
           if (e.id !== evId) return e;
           const updated = { ...e, tickets: [...e.tickets, ticket] };
           db.saveEvent(updated).catch(console.error);
           return updated;
-        }))} /> : null,
+        }))}
+      /> : null,
       team:          <TeamManagement org={activeOrg} events={events} onAddStaff={m => addStaff(activeOrg.id, m)} onRemoveStaff={sid => removeStaff(activeOrg.id, sid)} scanLogs={scanLogs} />,
       scanner:       <Scanner events={events} scanned={scanned} offlineMode={offline} onToggleOffline={() => setOffline(o => !o)} onScan={handleScan} onCacheDownload={() => notify("Cache downloaded", "info")} orgId={activeOrg.id} user={user} />,
       live:          <LiveDashboard events={events} orgId={activeOrg.id} />,
@@ -479,6 +514,7 @@ export default function App() {
       "whatsapp-blast": <WhatsAppBlast user={user} notify={notify} />,
       "sponsor-blast": <SponsorBlast org={activeOrg} user={user} notify={notify} />,
       "account-settings": <AccountSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
+      "payment-settings": <PaymentSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
     };
     return screens[view] || screens.dashboard;
   };
@@ -492,9 +528,13 @@ export default function App() {
       {showPublicChrome && <PublicHeader view={view} onNav={nav} />}
       {user && !isPublic && <AppNav user={user} onNav={nav} onLogout={logout} />}
       <div style={{ minHeight:"calc(100vh - 58px)" }}>
-        {renderScreen()}
+        <AnimatePresence mode="wait" initial={false}>
+          <div key={view}>
+            {renderScreen()}
+          </div>
+        </AnimatePresence>
       </div>
-      {showPublicChrome && ["landing","about","contact","explore"].includes(view) && (
+      {showPublicChrome && ["landing","about","contact","explore","how-it-works"].includes(view) && (
         <PublicFooter onNav={nav} />
       )}
     </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle, CheckSquare, ChevronLeft, ChevronRight, Edit, Filter, Music, Phone, Plus, Search, Sparkles, Ticket, Trash2 } from "lucide-react";
+import { CheckCircle, CheckSquare, ChevronLeft, ChevronRight, Edit, Filter, Image, Music, Phone, Plus, Search, Sparkles, Ticket, Trash2, Upload } from "lucide-react";
 import { GA, T } from "../../styles/theme.js";
 import { Btn, Card, Inp } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
@@ -15,9 +15,9 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
     { id:genId("GT"), name:"VIP Gate",      color:"#f59e0b" },
   ]);
   const [types, setTypes] = useState([
-    { id:genId("TP"), name:"Early Bird", price:"5000",  qty:"100", color:"#10b981", perksStr:"Discounted rate, General admission, Wristband" },
-    { id:genId("TP"), name:"Regular",    price:"12000", qty:"300", color:"#7c3aed", perksStr:"General admission, Wristband" },
-    { id:genId("TP"), name:"VIP",        price:"35000", qty:"100", color:"#f59e0b", perksStr:"Priority entry, Lounge access, Free drinks" },
+    { id:genId("TP"), name:"Early Bird", price:"5000",  qty:"100", color:"#10b981", perksStr:"Discounted rate, General admission, Wristband", ticketImage:"" },
+    { id:genId("TP"), name:"Regular",    price:"12000", qty:"300", color:"#7c3aed", perksStr:"General admission, Wristband", ticketImage:"" },
+    { id:genId("TP"), name:"VIP",        price:"35000", qty:"100", color:"#f59e0b", perksStr:"Priority entry, Lounge access, Free drinks", ticketImage:"" },
   ]);
   const [fields, setFields] = useState(DEF_FIELDS.map(f=>({...f})));
   const [count, setCount] = useState("60");
@@ -26,8 +26,14 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
   const setD = k => v => setDet(d=>({...d,[k]:v}));
   const addGate = () => setGates(g=>[...g,{id:genId("GT"),name:`Gate ${g.length+1}`,color:COLORS[g.length%COLORS.length]}]);
   const setGate = (id,k,v) => setGates(g=>g.map(x=>x.id===id?{...x,[k]:v}:x));
-  const addType = () => setTypes(t=>[...t,{id:genId("TP"),name:"New Tier",price:"10000",qty:"200",color:COLORS[t.length%COLORS.length],perksStr:""}]);
+  const addType = () => setTypes(t=>[...t,{id:genId("TP"),name:"New Tier",price:"10000",qty:"200",color:COLORS[t.length%COLORS.length],perksStr:"",ticketImage:""}]);
   const setType = (id,k,v) => setTypes(t=>t.map(x=>x.id===id?{...x,[k]:v}:x));
+  const handleTicketImage = (id, file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => setType(id, "ticketImage", e.target.result);
+    reader.readAsDataURL(file);
+  };
   const addField = () => setFields(f=>[...f,{id:genId("FL"),label:"Custom Field",type:"text",required:false,placeholder:""}]);
   const setField = (id,k,v) => setFields(f=>f.map(x=>x.id===id?{...x,[k]:v}:x));
 
@@ -134,6 +140,26 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
                   <Inp label="Qty" type="number" value={t.qty} onChange={v=>setType(t.id,"qty",v)}/>
                 </div>
                 <div style={{marginTop:10}}><Inp label="Perks (comma separated)" value={t.perksStr} onChange={v=>setType(t.id,"perksStr",v)} placeholder="Priority entry, Lounge access"/></div>
+                {/* Ticket art */}
+                <div style={{marginTop:12}}>
+                  <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8}}>Ticket Art (optional)</label>
+                  <div style={{display:"flex",alignItems:"center",gap:12}}>
+                    {t.ticketImage
+                      ? <div style={{position:"relative",width:80,height:48,borderRadius:8,overflow:"hidden",border:`1px solid ${t.color+"40"}`}}>
+                          <img src={t.ticketImage} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                          <button onClick={()=>setType(t.id,"ticketImage","")} style={{position:"absolute",top:2,right:2,width:16,height:16,borderRadius:4,background:"rgba(0,0,0,.7)",border:"none",color:"white",fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                        </div>
+                      : <div style={{width:80,height:48,borderRadius:8,border:`1.5px dashed ${t.color+"50"}`,background:t.color+"08",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                          <Image size={18} color={t.color+"80"}/>
+                        </div>
+                    }
+                    <label style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:10,border:`1px solid ${"#334155"}`,background:"transparent",color:"#94a3b8",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                      <Upload size={13}/>{t.ticketImage?"Change":"Upload Image"}
+                      <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleTicketImage(t.id,e.target.files[0])}/>
+                    </label>
+                    <p style={{fontSize:11,color:"#475569",lineHeight:1.5}}>Shows as background art on the attendee's ticket</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CheckCircle, XCircle, X, Bell } from "lucide-react";
 
 const T = {
@@ -150,18 +150,25 @@ export function Modal({ open, onClose, title, children, width=520 }) {
   );
 }
 
-export function QRDisplay({ value, size=140 }) {
-  const N=21, cell=size/N;
-  const inFP=(r,c)=>{ for(const[fr,fc]of[[0,0],[0,N-7],[N-7,0]]){if(r>=fr&&r<fr+7&&c>=fc&&c<fc+7){const lr=r-fr,lc=c-fc;return lr===0||lr===6||lc===0||lc===6||(lr>=2&&lr<=4&&lc>=2&&lc<=4);}} return null; };
-  const cells=[];
-  for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-    const fp=inFP(r,c);
-    const filled=fp!==null?fp:(()=>{let h=5381,k=value+r+c;for(let i=0;i<k.length;i++)h=(Math.imul(h,33)^k.charCodeAt(i))>>>0;return h%2===0;})();
-    if(filled)cells.push([c*cell,r*cell]);
-  }
-  return(
-    <div style={{background:"white",padding:8,borderRadius:12,display:"inline-block"}}>
-      <svg width={size} height={size}>{cells.map(([x,y],i)=><rect key={i} x={x} y={y} width={cell+.3} height={cell+.3} fill="#1a1a1a"/>)}</svg>
+// ── Real scannable QR code using the qrcode library ──────────
+// Run: npm install qrcode
+export function QRDisplay({ value, size = 140 }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!value || !canvasRef.current) return;
+    import("qrcode").then((QRCode) => {
+      QRCode.toCanvas(canvasRef.current, value, {
+        width: size,
+        margin: 1,
+        color: { dark: "#1a1a1a", light: "#ffffff" },
+      }).catch(console.error);
+    });
+  }, [value, size]);
+
+  return (
+    <div style={{ background: "white", padding: 8, borderRadius: 12, display: "inline-block" }}>
+      <canvas ref={canvasRef} width={size} height={size} />
     </div>
   );
 }

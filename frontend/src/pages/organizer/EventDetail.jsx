@@ -29,7 +29,6 @@ function ManualTicketModal({ open, onClose, event, onIssue, notify }) {
       isManual:true,
     };
     onIssue(ticket);
-    // Send ticket email if email provided
     if (form.email.trim()) {
       await sendTicketEmail(ticket, event, event.ticketTypes[form.typeId], notify);
     }
@@ -41,7 +40,7 @@ function ManualTicketModal({ open, onClose, event, onIssue, notify }) {
 
   return (
     <Modal open={open} onClose={onClose} title="Issue Manual Ticket (Offline Payment)" width={520}>
-      <div style={{padding:"0 0 4px",marginBottom:16,background:T.gold+"12",borderRadius:10,padding:12,border:`1px solid ${T.gold+"30"}`}}>
+      <div style={{padding:12,marginBottom:16,background:T.gold+"12",borderRadius:10,border:`1px solid ${T.gold+"30"}`}}>
         <p style={{fontSize:13,color:T.gold,fontWeight:600}}>
           Use this to issue a ticket to someone who paid offline (bank transfer, cash, POS, etc.).
           A signed QR ticket will be generated and optionally emailed to them.
@@ -70,7 +69,7 @@ function ManualTicketModal({ open, onClose, event, onIssue, notify }) {
   );
 }
 
-export default function EventDetail({ event, onBack, onNav, notify, onAddTicket }) {
+export default function EventDetail({ event, onBack, onNav, notify, onAddTicket, onApprovePayment, onRejectPayment }) {
   const { mobile } = useMedia();
   const [showQR, setShowQR] = useState(null);
   const [showManual, setShowManual] = useState(false);
@@ -79,8 +78,9 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket 
   const [fType, setFType] = useState("all");
   const [fStatus, setFStatus] = useState("all");
 
-  const used = event.tickets.filter(t=>t.status==="used").length;
-  const link = `https://evenova.ng/e/${event.id}`;
+  const used    = event.tickets.filter(t=>t.status==="used").length;
+  const pending = event.tickets.filter(t=>t.paymentStatus==="pending");
+  const link    = `https://evenova.ng/e/${event.id}`;
 
   const filtered = useMemo(()=>
     event.tickets.filter(t=>
@@ -161,6 +161,74 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket 
         </Card>
       </div>
 
+      {/* ── Pending Bank Payments ─────────────────────────────── */}
+      {pending.length > 0 && (
+        <Card style={{ padding:24, marginBottom:24, border:`1px solid ${T.gold+"40"}` }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+            <div>
+              <h3 style={{ fontSize:15, fontWeight:700, color:T.text }}>
+                ⏳ Pending Payments
+                <span style={{ marginLeft:8, padding:"2px 10px", borderRadius:100, fontSize:12, background:T.gold+"22", color:T.gold, fontWeight:700 }}>
+                  {pending.length}
+                </span>
+              </h3>
+              <p style={{ fontSize:12, color:T.muted, marginTop:2 }}>Bank transfers awaiting your confirmation</p>
+            </div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {pending.map(t => {
+              const tp = event.ticketTypes[t.tpId];
+              return (
+                <div key={t.id} style={{ padding:16, borderRadius:12, border:`1px solid ${T.border}`, background:T.surface+"60" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:12 }}>
+                    <div>
+                      <p style={{ fontSize:14, fontWeight:700, color:T.text }}>{t.holderName}</p>
+                      <p style={{ fontSize:12, color:T.muted }}>{t.holderEmail}</p>
+                      <p style={{ fontSize:11, color:T.muted, marginTop:2 }}>
+                        {tp?.name} · Submitted {new Date(t.registeredAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <span style={{ fontSize:14, fontWeight:800, color:T.gold }}>₦{tp?.price?.toLocaleString()}</span>
+                  </div>
+
+                  {/* Receipt preview */}
+                  {t.receiptUrl && (
+                    <div style={{ marginBottom:12 }}>
+                      <p style={{ fontSize:11, color:T.muted, fontWeight:700, textTransform:"uppercase", letterSpacing:".06em", marginBottom:6 }}>Transfer Receipt</p>
+                      {t.receiptUrl.startsWith("data:image") ? (
+                        <img src={t.receiptUrl} alt="receipt"
+                          style={{ maxWidth:"100%", maxHeight:220, borderRadius:10, objectFit:"contain", border:`1px solid ${T.border}`, display:"block" }}/>
+                      ) : (
+                        <a href={t.receiptUrl} target="_blank" rel="noreferrer"
+                          style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:12, color:T.accentL,
+                            padding:"7px 14px", borderRadius:8, border:`1px solid ${T.border}`, background:T.surface, textDecoration:"none" }}>
+                          📄 View Receipt PDF
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {!t.receiptUrl && (
+                    <div style={{ marginBottom:12, padding:"8px 12px", borderRadius:8, background:T.danger+"12", border:`1px solid ${T.danger+"30"}`, fontSize:12, color:T.danger }}>
+                      ⚠️ No receipt uploaded by attendee
+                    </div>
+                  )}
+
+                  <div style={{ display:"flex", gap:8 }}>
+                    <Btn sz="sm" v="success" onClick={() => onApprovePayment && onApprovePayment(event.id, t.id)}>
+                      ✓ Approve & Issue Ticket
+                    </Btn>
+                    <Btn sz="sm" v="danger" onClick={() => onRejectPayment && onRejectPayment(event.id, t.id)}>
+                      ✕ Reject
+                    </Btn>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       {/* Manual Ticket Modal */}
       <ManualTicketModal open={showManual} onClose={()=>setShowManual(false)} event={event}
         onIssue={t=>onAddTicket&&onAddTicket(event.id,t)} notify={notify}/>
@@ -194,7 +262,7 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket 
         {[
           [fGate,setFGate,[["all","All Gates"],...Object.entries(event.gates).map(([id,g])=>[id,g.name])]],
           [fType,setFType,[["all","All Types"],...Object.entries(event.ticketTypes).map(([id,t])=>[id,t.name])]],
-          [fStatus,setFStatus,[["all","All Status"],["unused","Unused"],["used","Checked In"]]],
+          [fStatus,setFStatus,[["all","All Status"],["unused","Unused"],["used","Checked In"],["pending_payment","Pending Payment"]]],
         ].map(([val,setter,opts],i)=>(
           <select key={i} value={val} onChange={e=>setter(e.target.value)}
             style={{padding:"9px 12px",borderRadius:10,background:T.surface,border:`1px solid ${T.border}`,color:T.text,fontSize:13}}>
@@ -208,11 +276,12 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket 
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {filtered.slice(0,40).map(t=>{
           const gate=event.gates[t.gId]; const tp=event.ticketTypes[t.tpId];
+          const isPending = t.paymentStatus === "pending";
           return (
-            <Card key={t.id} style={{padding:mobile?"10px 14px":"12px 18px"}}>
+            <Card key={t.id} style={{padding:mobile?"10px 14px":"12px 18px", opacity: isPending ? 0.8 : 1}}>
               <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:mobile?"wrap":"nowrap"}}>
-                <div style={{width:34,height:34,borderRadius:10,background:gate?.color+"22",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <Ticket size={15} style={{color:gate?.color||T.accent}}/>
+                <div style={{width:34,height:34,borderRadius:10,background:(isPending?T.gold:gate?.color||T.accent)+"22",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <Ticket size={15} style={{color:isPending?T.gold:gate?.color||T.accent}}/>
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <p style={{fontSize:13,fontWeight:700,color:T.text}}>{t.holderName||<span style={{color:T.muted,fontStyle:"italic"}}>Unregistered slot</span>}</p>
@@ -221,7 +290,9 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket 
                 <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
                   <Bdg color="gray">{gate?.name||"—"}</Bdg>
                   <Bdg color={tp?.color===T.gold?"gold":"purple"}>{tp?.name}</Bdg>
-                  <Bdg color={t.status==="used"?"green":"gray"}>{t.status==="used"?"✓ In":"Unused"}</Bdg>
+                  {isPending
+                    ? <Bdg color="orange">⏳ Pending Payment</Bdg>
+                    : <Bdg color={t.status==="used"?"green":"gray"}>{t.status==="used"?"✓ In":"Unused"}</Bdg>}
                   <button onClick={()=>setShowQR(t)} style={{padding:7,borderRadius:8,background:T.surface,border:`1px solid ${T.border}`,cursor:"pointer",color:T.muted}}>
                     <QrCode size={13}/>
                   </button>
@@ -236,4 +307,3 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket 
     </div>
   );
 }
-

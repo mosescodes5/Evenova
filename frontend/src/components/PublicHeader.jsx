@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calendar, Home, Info, Menu, MessageSquare, Sparkles } from "lucide-react";
+import { Calendar, Home, Info, Menu, MessageSquare, Sparkles, Zap } from "lucide-react";
 import { GA, T } from "../styles/theme.js";
 import { Btn } from "../components/ui/index.jsx";
 import { useMedia } from "../hooks/useMedia.js";
@@ -7,10 +7,10 @@ import { useMedia } from "../hooks/useMedia.js";
 export default function PublicHeader({ view, onNav }) {
   const { mobile } = useMedia();
   const [open, setOpen] = useState(false);
-  const links = [["landing","Home",Home],["explore","Events",Calendar],["about","About",Info],["contact","Contact",MessageSquare]];
+  const links = [["landing","Home",Home],["explore","Events",Calendar],["how-it-works","How It Works",Zap],["about","About",Info],["contact","Contact",MessageSquare]];
   return (
-    <header style={{position:"fixed",top:0,left:0,right:0,zIndex:200,
-      background:"rgba(8,8,15,.88)",borderBottom:`1px solid ${T.border}`,backdropFilter:"blur(20px)"}}>
+    <header className="glass-nav" style={{position:"fixed",top:0,left:0,right:0,zIndex:200,
+      }}>
       <div style={{maxWidth:1200,margin:"0 auto",padding:"0 20px",display:"flex",alignItems:"center",height:64,gap:12}}>
         {/* Logo */}
         <button onClick={()=>onNav("landing")} style={{display:"flex",alignItems:"center",gap:8,background:"none",border:"none",cursor:"pointer",marginRight:8}}>

@@ -35,6 +35,58 @@ export const GLOBAL_CSS = `
   .spin      { animation: spin .75s linear infinite; }
   .slide-down{ animation: slideDown .22s ease; }
 
+  /* ── More animations ── */
+  @keyframes shimmer  { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+  @keyframes glow     { 0%,100%{box-shadow:0 0 20px #7c3aed44} 50%{box-shadow:0 0 40px #7c3aed88,0 0 80px #7c3aed22} }
+  @keyframes glowGold { 0%,100%{box-shadow:0 0 20px #f59e0b44} 50%{box-shadow:0 0 40px #f59e0b88} }
+  @keyframes popIn    { 0%{opacity:0;transform:scale(.88)} 70%{transform:scale(1.04)} 100%{opacity:1;transform:scale(1)} }
+  @keyframes waveY    { 0%,100%{transform:translateY(0)} 33%{transform:translateY(-8px)} 66%{transform:translateY(4px)} }
+  @keyframes countUp  { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:none} }
+
+  .shimmer    { background: linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%); background-size:200% 100%; animation: shimmer 1.6s infinite; }
+  .glow-btn   { animation: glow 3s ease-in-out infinite; }
+  .glow-gold  { animation: glowGold 3s ease-in-out infinite; }
+  .pop-in     { animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both; }
+  .wave-y     { animation: waveY 4s ease-in-out infinite; }
+  .count-up   { animation: countUp .5s ease both; }
+  .stagger-1  { animation-delay: .1s !important; }
+  .stagger-2  { animation-delay: .2s !important; }
+  .stagger-3  { animation-delay: .3s !important; }
+  .stagger-4  { animation-delay: .4s !important; }
+
+  /* ── iPhone glassmorphism ── */
+  .glass {
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.09);
+  }
+  .glass-card {
+    background: rgba(255,255,255,0.04);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .glass-strong {
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 24px;
+    box-shadow: 0 12px 48px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.12);
+  }
+  .glass-nav {
+    background: rgba(8,8,15,0.72);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .hover-lift { transition: transform .22s ease, box-shadow .22s ease; }
+  .hover-lift:hover { transform: translateY(-4px); box-shadow: 0 20px 48px rgba(0,0,0,.4); }
+  .grad-text { background: linear-gradient(135deg,#7c3aed,#a78bfa,#f59e0b); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+
   /* ── Responsive grid helpers ── */
   .g2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
   .g3 { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }

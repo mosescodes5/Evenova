@@ -118,7 +118,7 @@ export const DEFAULT_ORGS = [
   { id: _O1, name: "Amara Events Co.", contactName: "Amara Okonkwo",
     email: "Mosesoluwa2005@gmail.com", phone: "+234 801 234 5678",
     idType: "NIN", idNumber: "NIN-28374912",
-    status: "approved", teamSize: 8, password: "Moses2005.",
+    status: "approved", teamSize: 8, password: "Moses@2026",
     staff: [
       { id: _S1, name: "Kalu Nduka", email: "kalu@amaraevents.ng", role: "Scanner", gateIds: [], password: "Kalu#Gate01" },
       { id: _S2, name: "Temi Adeyemi", email: "temi@amaraevents.ng", role: "Coordinator", gateIds: [], password: "Temi@Coord22" },
