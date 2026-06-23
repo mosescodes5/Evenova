@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Calendar, CheckCircle, ChevronLeft, Mail, MapPin, Ticket, Upload } from "lucide-react";
-import { EVENT_BANNERS, T } from "../styles/theme.js";
+import { Calendar, CheckCircle, ChevronLeft, Info, Mail, MapPin, Ticket, Upload } from "lucide-react";
+import { EVENT_BANNERS, T, calcServiceCharge, calcTotalWithCharge } from "../styles/theme.js";
 import { Bdg, Btn, Card, Inp, QRDisplay } from "../components/ui/index.jsx";
 import { useMedia } from "../hooks/useMedia.js";
 import { genId, encodeTicket } from "../utils/crypto.js";
@@ -9,36 +9,32 @@ import { openPaystackCheckout, openFlutterwaveCheckout } from "../utils/payment.
 
 /* ── Custom field renderer ─────────────────────────────────── */
 function CustomField({ field, value, onChange }) {
-  const base = { width:"100%", padding:"10px 14px", borderRadius:10, fontSize:14,
-    color:T.text, background:T.surface, border:`1px solid ${T.border}`, fontFamily:"inherit" };
+  const base = {
+    width: "100%", padding: "10px 14px", borderRadius: 10, fontSize: 14,
+    color: T.text, background: "var(--ev-surface)", border: "1px solid var(--ev-border)",
+    fontFamily: "inherit", transition: "border .18s",
+  };
   const label = (
-    <label style={{ fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase",
-      letterSpacing:".06em", display:"block", marginBottom:6 }}>
-      {field.label}{field.required && <span style={{ color:T.danger, marginLeft:3 }}>*</span>}
+    <label style={{ fontSize: 11, fontWeight: 700, color: "var(--ev-muted)", textTransform: "uppercase", letterSpacing: ".06em", display: "block", marginBottom: 6 }}>
+      {field.label}{field.required && <span style={{ color: "var(--ev-danger)", marginLeft: 3 }}>*</span>}
     </label>
   );
 
   if (field.type === "checkbox") return (
     <div>
       {label}
-      <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
         <div onClick={() => onChange(!value)}
-          style={{ width:20, height:20, borderRadius:6, border:`2px solid ${value ? T.accent : T.border}`,
-            background: value ? T.accent : "transparent", display:"flex", alignItems:"center",
-            justifyContent:"center", transition:"all .15s", flexShrink:0, cursor:"pointer" }}>
-          {value && <CheckCircle size={12} color="white"/>}
+          style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${value ? "var(--ev-accent)" : "var(--ev-border)"}`, background: value ? "var(--ev-accent)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s", flexShrink: 0, cursor: "pointer" }}>
+          {value && <CheckCircle size={12} color="white" />}
         </div>
-        <span style={{ fontSize:13, color:T.text }}>{field.placeholder || field.label}</span>
+        <span style={{ fontSize: 13, color: T.text }}>{field.placeholder || field.label}</span>
       </label>
     </div>
   );
 
   if (field.type === "date") return (
-    <div>
-      {label}
-      <input type="date" value={value || ""} onChange={e => onChange(e.target.value)}
-        style={{ ...base, colorScheme:"dark" }}/>
-    </div>
+    <div>{label}<input type="date" value={value || ""} onChange={e => onChange(e.target.value)} style={{ ...base, colorScheme: "dark" }} /></div>
   );
 
   if (field.type === "select" && field.options?.length) return (
@@ -52,48 +48,74 @@ function CustomField({ field, value, onChange }) {
   );
 
   if (field.type === "textarea") return (
-    <div>
-      {label}
-      <textarea value={value || ""} onChange={e => onChange(e.target.value)}
-        placeholder={field.placeholder} rows={3} style={{ ...base, resize:"vertical" }}/>
-    </div>
+    <div>{label}<textarea value={value || ""} onChange={e => onChange(e.target.value)} placeholder={field.placeholder} rows={3} style={{ ...base, resize: "vertical" }} /></div>
   );
 
   return (
-    <div>
-      {label}
-      <input type={field.type || "text"} value={value || ""} onChange={e => onChange(e.target.value)}
-        placeholder={field.placeholder} style={base}/>
+    <div>{label}<input type={field.type || "text"} value={value || ""} onChange={e => onChange(e.target.value)} placeholder={field.placeholder} style={base} /></div>
+  );
+}
+
+/* ── Ticket type card ──────────────────────────────────────── */
+function TicketCard({ tid, ticket: t, selected, onSelect }) {
+  const fee = calcServiceCharge(t.price);
+  const total = calcTotalWithCharge(t.price);
+  return (
+    <div onClick={() => onSelect(tid)}
+      style={{
+        borderRadius: 14, border: `2px solid ${selected ? t.color : "var(--ev-border)"}`,
+        background: selected ? t.color + "12" : "var(--ev-card)",
+        cursor: "pointer", transition: "all .2s", overflow: "hidden",
+      }}>
+      {t.ticketImage && (
+        <div style={{ height: 72, overflow: "hidden", position: "relative" }}>
+          <img src={t.ticketImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to bottom,transparent,${selected ? t.color + "40" : "rgba(8,8,15,.6)"})` }} />
+        </div>
+      )}
+      <div style={{ padding: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <span style={{ fontWeight: 700, color: selected ? t.color : T.text, fontSize: 14 }}>{t.name}</span>
+          <div style={{ textAlign: "right" }}>
+            <span style={{ fontWeight: 800, color: "var(--ev-gold)", fontSize: 15 }}>
+              {t.price === 0 ? "Free" : `₦${total.toLocaleString()}`}
+            </span>
+            {t.price > 0 && <p style={{ fontSize: 10, color: "var(--ev-muted)", marginTop: 1 }}>incl. ₦{fee.toLocaleString()} fee</p>}
+          </div>
+        </div>
+        {t.perks?.map((p, i) => (
+          <p key={i} style={{ fontSize: 12, color: "var(--ev-muted)" }}>
+            <CheckCircle size={10} style={{ display: "inline", marginRight: 4, color: "var(--ev-success)" }} />{p}
+          </p>
+        ))}
+        {selected && <p style={{ fontSize: 11, color: t.color, fontWeight: 700, marginTop: 6 }}>✓ Selected</p>}
+      </div>
     </div>
   );
 }
 
-/* ── Ticket card ───────────────────────────────────────────── */
-function TicketCard({ tid, ticket: t, selected, onSelect }) {
+/* ── Price breakdown component ─────────────────────────────── */
+function PriceBreakdown({ price }) {
+  if (!price || price === 0) return null;
+  const fee = calcServiceCharge(price);
+  const total = calcTotalWithCharge(price);
   return (
-    <div onClick={() => onSelect(tid)}
-      style={{ borderRadius:14, border:`2px solid ${selected ? t.color : T.border}`,
-        background: selected ? t.color+"12" : "transparent", cursor:"pointer",
-        transition:"all .2s", overflow:"hidden" }}>
-      {t.ticketImage && (
-        <div style={{ height:72, overflow:"hidden", position:"relative" }}>
-          <img src={t.ticketImage} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
-          <div style={{ position:"absolute", inset:0, background:`linear-gradient(to bottom,transparent,${selected?t.color+"40":"rgba(8,8,15,.6)"})` }}/>
-        </div>
-      )}
-      <div style={{ padding:14 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
-          <span style={{ fontWeight:700, color: selected ? t.color : T.text, fontSize:14 }}>{t.name}</span>
-          <span style={{ fontWeight:800, color:T.gold }}>
-            {t.price === 0 ? "Free" : `₦${t.price.toLocaleString()}`}
-          </span>
-        </div>
-        {t.perks?.map((p,i) => (
-          <p key={i} style={{ fontSize:12, color:T.muted }}>
-            <CheckCircle size={10} style={{ display:"inline", marginRight:4, color:T.success }}/>{p}
-          </p>
-        ))}
-        {selected && <p style={{ fontSize:11, color:t.color, fontWeight:700, marginTop:6 }}>✓ Selected</p>}
+    <div style={{ padding: "12px 14px", borderRadius: 10, background: "var(--ev-surface)", border: "1px solid var(--ev-border)", marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
+        <span style={{ color: "var(--ev-muted)" }}>Ticket price</span>
+        <span style={{ color: T.text, fontWeight: 600 }}>₦{price.toLocaleString()}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 13 }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--ev-muted)" }}>
+          Platform fee (5%)
+          <Info size={11} style={{ color: "var(--ev-muted)" }} title="Helps us keep the platform running" />
+        </span>
+        <span style={{ color: "var(--ev-muted)" }}>₦{fee.toLocaleString()}</span>
+      </div>
+      <div style={{ height: 1, background: "var(--ev-border)", marginBottom: 8 }} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15 }}>
+        <span style={{ fontWeight: 700, color: T.text }}>Total</span>
+        <span style={{ fontWeight: 800, color: "var(--ev-gold)" }}>₦{total.toLocaleString()}</span>
       </div>
     </div>
   );
@@ -101,24 +123,22 @@ function TicketCard({ tid, ticket: t, selected, onSelect }) {
 
 export default function PublicEventPage({ event, onBack, onRegister, notify }) {
   const { mobile } = useMedia();
-  const [selTypeId, setSelTypeId] = useState(Object.keys(event.ticketTypes)[1]||Object.keys(event.ticketTypes)[0]);
-  const [formData, setFormData]   = useState({});
+  const [selTypeId, setSelTypeId] = useState(Object.keys(event.ticketTypes)[1] || Object.keys(event.ticketTypes)[0]);
+  const [formData, setFormData] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [payStep, setPayStep]     = useState("form"); // form | paying | bank-receipt | done
-  const [success, setSuccess]     = useState(null);
+  const [payStep, setPayStep] = useState("form");
+  const [success, setSuccess] = useState(null);
   const [receiptDataUrl, setReceiptDataUrl] = useState(null);
-  const [receiptName, setReceiptName]       = useState("");
+  const [receiptName, setReceiptName] = useState("");
 
   const selType = event.ticketTypes[selTypeId];
-  const isFree  = !selType?.price || selType.price === 0;
-  const setF    = (id, v) => setFormData(f => ({ ...f, [id]: v }));
-
-  // Read payment config — org-level config is stored on the event's org, exposed via window._evPayCfg
+  const isFree = !selType?.price || selType.price === 0;
+  const setF = (id, v) => setFormData(f => ({ ...f, [id]: v }));
   const getPayCfg = () => event.paymentConfig || window._evPayCfg || {};
 
   const issueTicket = async (payRef, payStatus = "free") => {
     const tId = genId("TKT"), uId = genId("USR");
-    const holderName  = formData[event.regFields[0]?.id] || "Attendee";
+    const holderName = formData[event.regFields[0]?.id] || "Attendee";
     const holderEmail = formData[event.regFields[1]?.id] || "";
     const holderPhone = formData[event.regFields[2]?.id] || "";
     const ticket = {
@@ -132,14 +152,13 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
       paymentRef: payRef || null,
       paymentStatus: payStatus,
       receiptUrl: receiptDataUrl || null,
+      // financial tracking
+      ticketPrice: selType?.price || 0,
+      platformFee: calcServiceCharge(selType?.price || 0),
+      totalPaid: calcTotalWithCharge(selType?.price || 0),
     };
-    const reg = {
-      id: genId("REG"), tId, uId, evId: event.id,
-      typeId: selTypeId, data: formData,
-      holderName, holderEmail, code: ticket.code,
-    };
+    const reg = { id: genId("REG"), tId, uId, evId: event.id, typeId: selTypeId, data: formData, holderName, holderEmail, code: ticket.code };
     onRegister(event.id, reg, ticket);
-    // Only email if ticket is confirmed (not pending manual approval)
     if (holderEmail && payStatus !== "pending") {
       await sendTicketEmail(ticket, event, selType, notify);
     }
@@ -156,24 +175,25 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
     const cfg = getPayCfg();
     const payProvider = cfg.provider || "none";
 
-    if (isFree || payProvider === "none") {
-      await issueTicket(null, "free");
-      return;
-    }
+    if (isFree || payProvider === "none") { await issueTicket(null, "free"); return; }
 
     const holderEmail = formData[event.regFields[1]?.id] || "";
-    const holderName  = formData[event.regFields[0]?.id] || "Attendee";
+    const holderName = formData[event.regFields[0]?.id] || "Attendee";
     const holderPhone = formData[event.regFields[2]?.id] || "";
+    // Attendee pays total including platform fee
+    const chargeAmount = calcTotalWithCharge(selType.price);
 
     if (payProvider === "paystack") {
       setSubmitting(false); setPayStep("paying");
       try {
         await openPaystackCheckout({
-          email: holderEmail, name: holderName, amount: selType.price, eventTitle: event.title,
+          email: holderEmail, name: holderName,
+          amount: chargeAmount, // total with fee
+          eventTitle: event.title,
           onSuccess: async (ref) => { setSubmitting(true); await issueTicket(ref, "paid"); },
           onClose: () => { setPayStep("form"); notify("Payment cancelled", "error"); },
         });
-      } catch(e) { setPayStep("form"); notify(e.message, "error"); }
+      } catch (e) { setPayStep("form"); notify(e.message, "error"); }
       return;
     }
 
@@ -181,16 +201,17 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
       setSubmitting(false); setPayStep("paying");
       try {
         await openFlutterwaveCheckout({
-          email: holderEmail, name: holderName, phone: holderPhone, amount: selType.price, eventTitle: event.title,
+          email: holderEmail, name: holderName, phone: holderPhone,
+          amount: chargeAmount, // total with fee
+          eventTitle: event.title,
           onSuccess: async (txId) => { setSubmitting(true); await issueTicket(String(txId), "paid"); },
           onClose: () => { setPayStep("form"); notify("Payment cancelled", "error"); },
         });
-      } catch(e) { setPayStep("form"); notify(e.message, "error"); }
+      } catch (e) { setPayStep("form"); notify(e.message, "error"); }
       return;
     }
 
     if (payProvider === "bank") {
-      // Don't issue ticket yet — collect receipt first
       setSubmitting(false);
       setPayStep("bank-receipt");
       return;
@@ -204,81 +225,82 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
     const tp = event.ticketTypes[success.ticket?.tpId];
     const isPending = success.ticket?.paymentStatus === "pending";
     return (
-      <div style={{ minHeight:"100vh", background:"#08080f", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-        <div style={{ maxWidth:480, width:"100%", textAlign:"center" }} className="fade-up">
-          <div style={{ width:80, height:80, borderRadius:"50%", background:(isPending?T.gold:T.success)+"20",
-            border:`2px solid ${isPending?T.gold:T.success}`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
-            {isPending
-              ? <span style={{ fontSize:36 }}>⏳</span>
-              : <CheckCircle size={36} color={T.success}/>}
+      <div style={{ minHeight: "100vh", background: "var(--ev-bg)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ maxWidth: 480, width: "100%", textAlign: "center" }} className="fade-up">
+          <div style={{
+            width: 80, height: 80, borderRadius: "50%",
+            background: (isPending ? "var(--ev-gold)" : "var(--ev-success)") + "20",
+            border: `2px solid ${isPending ? "var(--ev-gold)" : "var(--ev-success)"}`,
+            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px",
+          }}>
+            {isPending ? <span style={{ fontSize: 36 }}>⏳</span> : <CheckCircle size={36} color="var(--ev-success)" />}
           </div>
-          <h2 className="outfit" style={{ fontSize:30, fontWeight:900, color:T.text, marginBottom:10 }}>
+          <h2 className="outfit" style={{ fontSize: 30, fontWeight: 900, color: T.text, marginBottom: 10 }}>
             {isPending ? "Receipt Submitted!" : "You're in! 🎉"}
           </h2>
-          <p style={{ color:T.muted, marginBottom:20, lineHeight:1.6 }}>
+          <p style={{ color: "var(--ev-muted)", marginBottom: 20, lineHeight: 1.6 }}>
             {isPending
-              ? "We've received your receipt. Your ticket will be emailed once we confirm your payment — usually within a few hours."
+              ? "We've received your receipt. Your ticket will be emailed once payment is confirmed."
               : success.ticket?.paymentStatus === "paid"
               ? "Payment confirmed. Your ticket has been emailed to you."
               : "Your free ticket has been emailed to you."}
           </p>
 
-          {/* Only show QR if ticket is confirmed */}
           {!isPending && (
-            <div className="glass-card" style={{ padding:0, marginBottom:20, overflow:"hidden", textAlign:"left" }}>
+            <div className="glass-card" style={{ padding: 0, marginBottom: 20, overflow: "hidden", textAlign: "left" }}>
               {tp?.ticketImage && (
-                <div style={{ height:120, overflow:"hidden", position:"relative" }}>
-                  <img src={tp.ticketImage} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
-                  <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom,transparent 40%,rgba(8,8,15,.9))" }}/>
-                  <div style={{ position:"absolute", bottom:12, left:20 }}>
-                    <p style={{ fontSize:11, color:"rgba(255,255,255,.6)", textTransform:"uppercase", letterSpacing:".1em" }}>{event.title}</p>
-                    <p style={{ fontSize:18, fontWeight:800, color:"white" }}>{tp?.name}</p>
+                <div style={{ height: 120, overflow: "hidden", position: "relative" }}>
+                  <img src={tp.ticketImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom,transparent 40%,rgba(8,8,15,.9))" }} />
+                  <div style={{ position: "absolute", bottom: 12, left: 20 }}>
+                    <p style={{ fontSize: 11, color: "rgba(255,255,255,.6)", textTransform: "uppercase", letterSpacing: ".1em" }}>{event.title}</p>
+                    <p style={{ fontSize: 18, fontWeight: 800, color: "white" }}>{tp?.name}</p>
                   </div>
                 </div>
               )}
-              {!tp?.ticketImage && (
-                <div style={{ padding:"20px 20px 0", background:`linear-gradient(135deg,${tp?.color||T.accent}18,transparent)` }}>
-                  <p style={{ fontSize:11, color:T.muted, textTransform:"uppercase", letterSpacing:".1em" }}>{event.title}</p>
-                  <p style={{ fontSize:18, fontWeight:800, color:tp?.color||T.accent }}>{tp?.name}</p>
+              <div style={{ padding: 20 }}>
+                <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                  <QRDisplay value={success.code} size={180} />
                 </div>
-              )}
-              <div style={{ padding:20 }}>
-                <div style={{ display:"flex", justifyContent:"center", marginBottom:16 }}>
-                  <QRDisplay value={success.code} size={180}/>
-                </div>
-                <div style={{ background:T.surface, borderRadius:10, padding:"10px 14px", marginBottom:12 }}>
-                  <p style={{ fontSize:11, color:T.muted, marginBottom:4 }}>Show this QR at the gate:</p>
-                  <code style={{ fontSize:10, color:T.gold, wordBreak:"break-all" }}>{success.code}</code>
+                <div style={{ background: "var(--ev-surface)", borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
+                  <p style={{ fontSize: 11, color: "var(--ev-muted)", marginBottom: 4 }}>Show this QR at the gate:</p>
+                  <code style={{ fontSize: 10, color: "var(--ev-gold)", wordBreak: "break-all" }}>{success.code}</code>
                 </div>
                 {success.ticket?.holderName && (
-                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}>
-                    <span style={{ color:T.muted }}>Name</span>
-                    <span style={{ color:T.text, fontWeight:600 }}>{success.ticket.holderName}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                    <span style={{ color: "var(--ev-muted)" }}>Name</span>
+                    <span style={{ color: T.text, fontWeight: 600 }}>{success.ticket.holderName}</span>
                   </div>
                 )}
-                <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginTop:6 }}>
-                  <span style={{ color:T.muted }}>{event.date}</span>
-                  <span style={{ color:T.muted }}>{event.venue}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 6 }}>
+                  <span style={{ color: "var(--ev-muted)" }}>{event.date}</span>
+                  <span style={{ color: "var(--ev-muted)" }}>{event.venue}</span>
                 </div>
+                {success.ticket?.totalPaid > 0 && (
+                  <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, background: "var(--ev-success)10", border: "1px solid var(--ev-success)30", fontSize: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "var(--ev-muted)" }}>Amount paid</span>
+                      <span style={{ color: "var(--ev-success)", fontWeight: 700 }}>₦{success.ticket.totalPaid.toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
                 {success.ticket?.holderEmail && (
-                  <p style={{ fontSize:12, color:T.muted, marginTop:10, textAlign:"center" }}>
-                    <Mail size={11} style={{ display:"inline", marginRight:4 }}/>Emailed to {success.ticket.holderEmail}
+                  <p style={{ fontSize: 12, color: "var(--ev-muted)", marginTop: 10, textAlign: "center" }}>
+                    <Mail size={11} style={{ display: "inline", marginRight: 4 }} />Emailed to {success.ticket.holderEmail}
                   </p>
                 )}
               </div>
             </div>
           )}
 
-          {/* Pending state — show what they submitted */}
           {isPending && success.ticket?.holderEmail && (
-            <div style={{ padding:16, borderRadius:14, background:T.gold+"10", border:`1px solid ${T.gold+"30"}`, marginBottom:20, textAlign:"left" }}>
-              <p style={{ fontSize:13, color:T.gold, fontWeight:700, marginBottom:6 }}>What happens next?</p>
-              <p style={{ fontSize:13, color:T.muted, lineHeight:1.7 }}>
-                We'll review your receipt and email your ticket to <strong style={{ color:T.text }}>{success.ticket.holderEmail}</strong> once confirmed.
+            <div style={{ padding: 16, borderRadius: 14, background: "var(--ev-gold)10", border: "1px solid var(--ev-gold)30", marginBottom: 20, textAlign: "left" }}>
+              <p style={{ fontSize: 13, color: "var(--ev-gold)", fontWeight: 700, marginBottom: 6 }}>What happens next?</p>
+              <p style={{ fontSize: 13, color: "var(--ev-muted)", lineHeight: 1.7 }}>
+                We'll review your receipt and email your ticket to <strong style={{ color: T.text }}>{success.ticket.holderEmail}</strong> once confirmed.
               </p>
             </div>
           )}
-
           <Btn full v="secondary" onClick={onBack}>Back to Events</Btn>
         </div>
       </div>
@@ -286,96 +308,93 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
   }
 
   /* ── Event page ─────────────────────────────────────────── */
+  const bannerStyle = event.coverImage
+    ? {}
+    : { background: EVENT_BANNERS[event.banner] || EVENT_BANNERS.default };
+
   return (
-    <div style={{ background:"#08080f", minHeight:"100vh", paddingTop:64 }}>
+    <div style={{ background: "var(--ev-bg)", minHeight: "100vh", paddingTop: 64 }}>
       {/* Hero banner */}
-      <div style={{ height:260, background:EVENT_BANNERS[event.banner]||EVENT_BANNERS[0],
-        position:"relative", display:"flex", alignItems:"flex-end", padding:"32px 24px" }}>
-        <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top,rgba(8,8,15,.9),transparent)" }}/>
-        <div style={{ position:"relative" }}>
+      <div style={{
+        height: 280, position: "relative", display: "flex", alignItems: "flex-end",
+        padding: "32px 24px", overflow: "hidden", ...bannerStyle,
+      }}>
+        {event.coverImage && (
+          <img src={event.coverImage} alt={event.title}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        )}
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top,rgba(8,8,15,.92),rgba(8,8,15,.3))" }} />
+        <div style={{ position: "relative" }}>
           <Bdg color="purple">{event.category}</Bdg>
-          <h1 className="outfit" style={{ fontSize:mobile?24:38, fontWeight:900, color:"white", marginTop:8, lineHeight:1.1 }}>{event.title}</h1>
+          <h1 className="outfit" style={{ fontSize: mobile ? 24 : 38, fontWeight: 900, color: "white", marginTop: 8, lineHeight: 1.1 }}>{event.title}</h1>
         </div>
       </div>
 
-      <div style={{ maxWidth:900, margin:"0 auto", padding:mobile?"24px 16px":"40px 24px" }}>
-        <button onClick={onBack} style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"none", color:T.muted, cursor:"pointer", fontSize:13, marginBottom:28 }}>
-          <ChevronLeft size={15}/>Back to events
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: mobile ? "24px 16px" : "40px 24px" }}>
+        <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "var(--ev-muted)", cursor: "pointer", fontSize: 13, marginBottom: 28 }}>
+          <ChevronLeft size={15} />Back to events
         </button>
 
-        <div style={{ display:"grid", gridTemplateColumns:mobile?"1fr":"1fr 340px", gap:24, alignItems:"start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: mobile ? "1fr" : "1fr 340px", gap: 24, alignItems: "start" }}>
           {/* Left: info + form */}
           <div>
-            <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:20 }}>
-              <span style={{ fontSize:13, color:T.muted }}><Calendar size={12} style={{ display:"inline", marginRight:4 }}/>{event.date} · {event.time}–{event.endTime}</span>
-              <span style={{ fontSize:13, color:T.muted }}><MapPin size={12} style={{ display:"inline", marginRight:4 }}/>{event.venue}, {event.city}</span>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+              <span style={{ fontSize: 13, color: "var(--ev-muted)" }}><Calendar size={12} style={{ display: "inline", marginRight: 4 }} />{event.date} · {event.time}–{event.endTime}</span>
+              <span style={{ fontSize: 13, color: "var(--ev-muted)" }}><MapPin size={12} style={{ display: "inline", marginRight: 4 }} />{event.venue}, {event.city}</span>
             </div>
-            <p style={{ fontSize:14, color:T.muted, lineHeight:1.8, marginBottom:28 }}>{event.desc}</p>
+            <p style={{ fontSize: 14, color: "var(--ev-muted)", lineHeight: 1.8, marginBottom: 28 }}>{event.desc}</p>
 
-            {/* Registration form */}
-            <Card style={{ padding:28 }}>
-              <h3 style={{ fontSize:16, fontWeight:700, color:T.text, marginBottom:4 }}>Registration Form</h3>
-              <p style={{ fontSize:13, color:T.muted, marginBottom:20 }}>Fill in your details to secure your spot.</p>
+            <Card style={{ padding: 28 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 4 }}>Registration Form</h3>
+              <p style={{ fontSize: 13, color: "var(--ev-muted)", marginBottom: 20 }}>Fill in your details to secure your spot.</p>
 
-              <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-                {/* Always show fields unless we're on the bank-receipt step */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {payStep !== "bank-receipt" && event.regFields.map(f => (
-                  <CustomField key={f.id} field={f} value={formData[f.id]} onChange={v => setF(f.id, v)}/>
+                  <CustomField key={f.id} field={f} value={formData[f.id]} onChange={v => setF(f.id, v)} />
                 ))}
 
-                {/* Paystack/Flutterwave processing spinner */}
                 {payStep === "paying" && (
-                  <div style={{ padding:20, borderRadius:14, background:T.accent+"15", border:`1px solid ${T.accent+"40"}`, textAlign:"center" }}>
-                    <div className="spin" style={{ width:28, height:28, border:`3px solid ${T.border}`, borderTopColor:T.accentL, borderRadius:"50%", margin:"0 auto 10px" }}/>
-                    <p style={{ fontSize:14, color:T.accentL, fontWeight:700 }}>Complete payment in the popup…</p>
-                    <p style={{ fontSize:12, color:T.muted, marginTop:4 }}>Do not close this page</p>
+                  <div style={{ padding: 20, borderRadius: 14, background: "var(--ev-accent)15", border: "1px solid var(--ev-accent)40", textAlign: "center" }}>
+                    <div className="spin" style={{ width: 28, height: 28, border: "3px solid var(--ev-border)", borderTopColor: "var(--ev-accentL)", borderRadius: "50%", margin: "0 auto 10px" }} />
+                    <p style={{ fontSize: 14, color: "var(--ev-accentL)", fontWeight: 700 }}>Complete payment in the popup…</p>
+                    <p style={{ fontSize: 12, color: "var(--ev-muted)", marginTop: 4 }}>Do not close this page</p>
                   </div>
                 )}
 
-                {/* ── Bank transfer + receipt upload step ── */}
                 {payStep === "bank-receipt" && (() => {
                   const cfg = getPayCfg();
+                  const total = calcTotalWithCharge(selType?.price || 0);
                   return (
-                    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-                      {/* Bank details box */}
-                      <div style={{ padding:16, borderRadius:14, background:T.gold+"12", border:`1px solid ${T.gold+"40"}` }}>
-                        <p style={{ fontSize:13, fontWeight:700, color:T.gold, marginBottom:10 }}>💳 Transfer to this account:</p>
-                        <div style={{ display:"grid", gap:8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div style={{ padding: 16, borderRadius: 14, background: "var(--ev-gold)12", border: "1px solid var(--ev-gold)40" }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: "var(--ev-gold)", marginBottom: 10 }}>💳 Transfer to this account:</p>
+                        <div style={{ display: "grid", gap: 8 }}>
                           {[
-                            ["Bank",         cfg.bankName],
-                            ["Account No.",  cfg.bankAccount],
+                            ["Bank", cfg.bankName],
+                            ["Account No.", cfg.bankAccount],
                             ["Account Name", cfg.bankHolder],
-                            ["Amount",       `₦${selType?.price?.toLocaleString()}`],
+                            ["Amount (incl. 5% fee)", `₦${total.toLocaleString()}`],
                           ].map(([k, v]) => (
-                            <div key={k} style={{ display:"flex", justifyContent:"space-between", fontSize:13 }}>
-                              <span style={{ color:T.muted }}>{k}</span>
-                              <span style={{ color:T.text, fontWeight:700, fontFamily: k === "Account No." ? "monospace" : "inherit" }}>{v}</span>
+                            <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                              <span style={{ color: "var(--ev-muted)" }}>{k}</span>
+                              <span style={{ color: T.text, fontWeight: 700, fontFamily: k.includes("Account No.") ? "monospace" : "inherit" }}>{v}</span>
                             </div>
                           ))}
                         </div>
-                        <p style={{ fontSize:11, color:T.muted, marginTop:10 }}>
-                          Use your name as the payment reference / description.
-                        </p>
                       </div>
 
-                      {/* Receipt upload */}
                       <div>
-                        <label style={{ fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:".06em", display:"block", marginBottom:8 }}>
-                          Upload Transfer Receipt <span style={{ color:T.danger }}>*</span>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: "var(--ev-muted)", textTransform: "uppercase", letterSpacing: ".06em", display: "block", marginBottom: 8 }}>
+                          Upload Transfer Receipt <span style={{ color: "var(--ev-danger)" }}>*</span>
                         </label>
                         {!receiptDataUrl ? (
-                          <label
-                            style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8,
-                              padding:28, borderRadius:12, border:`2px dashed ${T.border}`, cursor:"pointer",
-                              background:T.surface, transition:"border-color .15s" }}
-                            onMouseEnter={e => e.currentTarget.style.borderColor = T.accent}
-                            onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
-                            <Upload size={24} color={T.muted}/>
-                            <span style={{ fontSize:13, color:T.muted, textAlign:"center" }}>
-                              Click to upload screenshot or PDF of your receipt
-                            </span>
-                            <span style={{ fontSize:11, color:T.muted }}>Max 5 MB · JPG, PNG, PDF</span>
-                            <input type="file" accept="image/*,application/pdf" style={{ display:"none" }}
+                          <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, padding: 28, borderRadius: 12, border: "2px dashed var(--ev-border)", cursor: "pointer", background: "var(--ev-surface)", transition: "border-color .15s" }}
+                            onMouseEnter={e => e.currentTarget.style.borderColor = "var(--ev-accent)"}
+                            onMouseLeave={e => e.currentTarget.style.borderColor = "var(--ev-border)"}>
+                            <Upload size={24} color="var(--ev-muted)" />
+                            <span style={{ fontSize: 13, color: "var(--ev-muted)", textAlign: "center" }}>Click to upload screenshot or PDF</span>
+                            <span style={{ fontSize: 11, color: "var(--ev-muted)" }}>Max 5 MB · JPG, PNG, PDF</span>
+                            <input type="file" accept="image/*,application/pdf" style={{ display: "none" }}
                               onChange={e => {
                                 const file = e.target.files[0];
                                 if (!file) return;
@@ -384,46 +403,43 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
                                 const reader = new FileReader();
                                 reader.onload = ev => setReceiptDataUrl(ev.target.result);
                                 reader.readAsDataURL(file);
-                              }}/>
+                              }} />
                           </label>
                         ) : (
-                          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"12px 14px", borderRadius:12,
-                            background:T.success+"12", border:`1px solid ${T.success+"40"}` }}>
-                            <CheckCircle size={16} color={T.success}/>
-                            <span style={{ fontSize:13, color:T.success, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{receiptName}</span>
-                            <button onClick={() => { setReceiptDataUrl(null); setReceiptName(""); }}
-                              style={{ background:"none", border:"none", color:T.muted, cursor:"pointer", fontSize:16, lineHeight:1 }}>✕</button>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 12, background: "var(--ev-success)12", border: "1px solid var(--ev-success)40" }}>
+                            <CheckCircle size={16} color="var(--ev-success)" />
+                            <span style={{ fontSize: 13, color: "var(--ev-success)", flex: 1 }}>{receiptName}</span>
+                            <button onClick={() => { setReceiptDataUrl(null); setReceiptName(""); }} style={{ background: "none", border: "none", color: "var(--ev-muted)", cursor: "pointer" }}>✕</button>
                           </div>
                         )}
                       </div>
 
-                      <Btn full sz="lg" disabled={!receiptDataUrl || submitting} onClick={async () => {
-                        setSubmitting(true);
-                        await issueTicket("BANK_PENDING", "pending");
-                      }}>
+                      <Btn full sz="lg" disabled={!receiptDataUrl || submitting} onClick={async () => { setSubmitting(true); await issueTicket("BANK_PENDING", "pending"); }}>
                         {submitting ? "Submitting…" : "Submit Receipt & Wait for Confirmation"}
                       </Btn>
-                      <button onClick={() => { setPayStep("form"); setReceiptDataUrl(null); setReceiptName(""); }}
-                        style={{ background:"none", border:"none", color:T.muted, fontSize:12, cursor:"pointer", textAlign:"center", marginTop:-4 }}>
+                      <button onClick={() => { setPayStep("form"); setReceiptDataUrl(null); setReceiptName(""); }} style={{ background: "none", border: "none", color: "var(--ev-muted)", fontSize: 12, cursor: "pointer", textAlign: "center", marginTop: -4 }}>
                         ← Back to form
                       </button>
                     </div>
                   );
                 })()}
 
-                {/* Normal submit button */}
                 {payStep !== "paying" && payStep !== "bank-receipt" && (() => {
                   const cfg = getPayCfg();
+                  const total = calcTotalWithCharge(selType?.price || 0);
                   const btnLabel = submitting ? "Processing…"
                     : isFree ? "Register Free"
-                    : cfg.provider === "paystack"    ? `Pay ₦${selType?.price?.toLocaleString()} with Paystack`
-                    : cfg.provider === "flutterwave" ? `Pay ₦${selType?.price?.toLocaleString()} with Flutterwave`
-                    : cfg.provider === "bank"        ? `Register · Pay ₦${selType?.price?.toLocaleString()} via Transfer`
-                    : `Register · ₦${selType?.price?.toLocaleString()}`;
+                    : cfg.provider === "paystack" ? `Pay ₦${total.toLocaleString()} with Paystack`
+                    : cfg.provider === "flutterwave" ? `Pay ₦${total.toLocaleString()} with Flutterwave`
+                    : cfg.provider === "bank" ? `Register · Pay ₦${total.toLocaleString()} via Transfer`
+                    : `Register · ₦${total.toLocaleString()}`;
                   return (
-                    <Btn full sz="lg" onClick={submit} disabled={submitting} style={{ marginTop:4 }}>
-                      {btnLabel}
-                    </Btn>
+                    <div>
+                      {!isFree && <PriceBreakdown price={selType?.price || 0} />}
+                      <Btn full sz="lg" onClick={submit} disabled={submitting} style={{ marginTop: 4 }}>
+                        {btnLabel}
+                      </Btn>
+                    </div>
                   );
                 })()}
               </div>
@@ -431,21 +447,21 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
           </div>
 
           {/* Right: ticket selector */}
-          <div style={{ position:mobile?"static":"sticky", top:80 }}>
-            <Card style={{ padding:22, marginBottom:14 }}>
-              <h3 style={{ fontSize:14, fontWeight:700, color:T.text, marginBottom:14 }}>Choose Ticket Type</h3>
-              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          <div style={{ position: mobile ? "static" : "sticky", top: 80 }}>
+            <Card style={{ padding: 22, marginBottom: 14 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 14 }}>Choose Ticket Type</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {Object.entries(event.ticketTypes).map(([tid, t]) => (
-                  <TicketCard key={tid} tid={tid} ticket={t} selected={selTypeId===tid} onSelect={setSelTypeId}/>
+                  <TicketCard key={tid} tid={tid} ticket={t} selected={selTypeId === tid} onSelect={setSelTypeId} />
                 ))}
               </div>
             </Card>
-            <Card style={{ padding:18 }}>
-              <p style={{ fontSize:12, color:T.muted, fontWeight:700, marginBottom:10 }}>Entry Gates</p>
-              {Object.values(event.gates).map((g,i) => (
-                <div key={i} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                  <div style={{ width:8, height:8, borderRadius:"50%", background:g.color }}/>
-                  <span style={{ fontSize:13, color:T.text }}>{g.name}</span>
+            <Card style={{ padding: 18 }}>
+              <p style={{ fontSize: 12, color: "var(--ev-muted)", fontWeight: 700, marginBottom: 10 }}>Entry Gates</p>
+              {Object.values(event.gates).map((g, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: g.color }} />
+                  <span style={{ fontSize: 13, color: T.text }}>{g.name}</span>
                 </div>
               ))}
             </Card>
