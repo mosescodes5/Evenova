@@ -8,6 +8,13 @@
       "when": 1782815194891,
       "tag": "0000_normal_gravity",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782900000000,
+      "tag": "0001_add_email_verification",
+      "breakpoints": true
     }
   ]
 }
