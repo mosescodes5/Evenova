@@ -36,7 +36,7 @@ router.post("/paystack", async (req, res) => {
     try {
       const pending = await ticketService.getPendingByPaymentRef(reference);
       if (pending) {
-        const ticket = await ticketService.confirmPayment(pending.id, reference);
+        const ticket = await ticketService.confirmPayment(pending.id, reference, "paystack");
         await emailService.sendTicketEmail(ticket, customer.email);
       }
     } catch (err) {
@@ -61,7 +61,7 @@ router.post("/flutterwave", async (req, res) => {
     try {
       const pending = await ticketService.getPendingByPaymentRef(tx_ref);
       if (pending) {
-        const ticket = await ticketService.confirmPayment(pending.id, tx_ref);
+        const ticket = await ticketService.confirmPayment(pending.id, tx_ref, "flutterwave");
         await emailService.sendTicketEmail(ticket, customer.email);
       }
     } catch (err) {

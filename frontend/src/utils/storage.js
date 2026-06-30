@@ -1,7 +1,7 @@
 export const KEYS = {
   ORGS:"ev-organizers", EVENTS:"ev-events",
   SCANNED:"ev-scanned", LOGS:"ev-scan-logs", BLASTS:"ev-email-blasts",
-  USER:"ev-session-user", VIEW:"ev-session-view",
+  USER:"ev-session-user", VIEW:"ev-session-view", TOKEN:"ev-session-token",
 };
 export function storGet(key,fallback){
   try{ const r=localStorage.getItem(key); return r?JSON.parse(r):fallback; }catch{return fallback;}

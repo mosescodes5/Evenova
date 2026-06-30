@@ -168,27 +168,37 @@ The `TICKET_SECRET` in your backend `.env` **must match** the `SECRET` constant 
 
 ## Database Setup
 
-The backend services contain `// TODO: DB` stubs. Wire them up to your preferred database:
-
-### Option A — PostgreSQL (recommended for production)
+The backend is wired to **PostgreSQL via Drizzle ORM** — `auth`, `events`, `tickets`, and `scan logs` all read/write to real tables now (no more `// TODO: DB` stubs in those files).
 
 ```bash
-npm install pg drizzle-orm
+cd backend
+npm install
+
+# 1. Point DATABASE_URL at a real Postgres instance (local, Supabase, Neon, Render, etc.)
+cp .env.example .env
+# edit .env → DATABASE_URL=postgresql://user:pass@host:5432/evenova
+
+# 2. Generate & apply the schema
+npm run db:generate   # writes SQL migration files from src/db/schema.js
+npm run db:migrate    # applies them to DATABASE_URL
+
+# 3. Seed the demo accounts from the User Roles table below
+npm run db:seed
 ```
 
-Key tables: `organizers`, `events`, `gates`, `ticket_types`, `tickets`, `scan_logs`, `staff`
+`npm run db:studio` opens Drizzle Studio, a local GUI for browsing/editing rows.
 
-### Option B — MongoDB
+### What changed
+- **`auth.js`** — real bcrypt-hashed passwords, looked up from the `users` table. `register` creates a `pending` organizer that needs manual approval before login succeeds (flip `status` to `approved` in `db:studio` or build an admin-approval endpoint).
+- **`events.js`** — full CRUD against `events`, `ticket_types`, and `gates`, with ownership checks (an organizer can only edit/cancel their own events; admins can touch any).
+- **`ticketService.js`** — `createTicket` now runs inside a DB transaction with a row lock on the ticket type, so concurrent buyers can never oversell a sold-out tier. `validateScan` checks real ticket status (rejects already-used, unpaid, refunded, or void tickets) and writes every attempt — admitted or rejected — to `scan_logs`.
+- **`paymentsService.js`** (new) — `tickets.js` now calls Paystack/Flutterwave's verify-transaction API server-side before issuing any paid ticket, and cross-checks the amount paid against the ticket type's price. The client can no longer mint a ticket just by claiming a payment succeeded.
+- Free tickets (`priceKobo: 0`) and organizer-issued manual/comp tickets skip payment verification, as before.
 
-```bash
-npm install mongoose
-```
-
-### Option C — Supabase / PlanetScale / Neon (hosted)
-
-Set `DATABASE_URL` to your hosted connection string. No local DB needed.
+If you'd rather use MongoDB or a hosted option instead, the same patterns apply — swap `src/db/index.js` and `src/db/schema.js` for your driver of choice, and the route/service files only need their query calls updated, not their structure.
 
 ---
+
 
 ## Deployment
 
@@ -206,7 +216,46 @@ VITE_API_URL=https://api.evenova.ng
 VITE_PAYSTACK_PUBLIC_KEY=pk_live_...
 ```
 
-### Backend — Railway / Render / Fly.io
+### Backend — Vercel (serverless)
+
+The backend is set up to deploy on Vercel as-is:
+- `backend/api/index.js` exports the Express app as a serverless function
+- `backend/vercel.json` rewrites all requests to that function
+- `src/index.js` only calls `app.listen()` when `process.env.VERCEL` is **not** set, so it won't try to bind a port in the serverless environment
+
+```bash
+cd backend
+vercel        # first deploy, follow prompts (set root directory to backend/)
+vercel --prod
+```
+
+Set these in the Vercel project's Environment Variables (not in a committed `.env`):
+```
+DATABASE_URL=<your Supabase pooled connection string — see below>
+PGSSL=true
+JWT_SECRET=<openssl rand -hex 32>
+TICKET_SECRET=<openssl rand -hex 32>
+PAYSTACK_SECRET_KEY=...
+ALLOWED_ORIGINS=https://your-frontend.vercel.app
+```
+
+#### Supabase connection string — use the **pooled** one
+
+Vercel serverless functions are short-lived and can spin up many instances at once. If you use Supabase's direct connection (port `5432`), you'll quickly hit Postgres's connection limit and start seeing `too many clients already` errors.
+
+In your Supabase project → **Settings → Database → Connection Pooling**, copy the pooled connection string instead — it uses port `6543` and includes `?pgbouncer=true`:
+```
+DATABASE_URL=postgresql://postgres.xxxxxxxx:[password]@aws-0-xx-xxx.pooler.supabase.com:6543/postgres?pgbouncer=true
+```
+`backend/src/db/index.js` already caps the local `pg` pool to a single connection when `VERCEL` is set, which pairs correctly with Supabase's pooler — you don't need to change anything else.
+
+Run migrations once from your local machine (not from Vercel) using the **direct** connection string (port `5432`) so the migration has a stable, non-pooled session:
+```bash
+DATABASE_URL="postgresql://postgres:[password]@db.xxxxxxxx.supabase.co:5432/postgres" npm run db:migrate
+DATABASE_URL="postgresql://postgres:[password]@db.xxxxxxxx.supabase.co:5432/postgres" npm run db:seed
+```
+
+### Other backend hosts — Railway / Render / Fly.io
 
 ```bash
 cd backend

@@ -29,7 +29,7 @@ import AdminRevenue from "./pages/admin/AdminRevenue.jsx";
 import AdminScanLogView from "./pages/admin/AdminScanLogView.jsx";
 import AdminOrgs from "./pages/admin/AdminOrgs.jsx";
 import EmailBlast from "./pages/admin/EmailBlast.jsx";
-import WhatsAppBlast from "./pages/admin/whatsappblast.jsx";
+import WhatsAppBlast from "./pages/admin/WhatsAppBlast.jsx";
 
 import OrgDashboard from "./pages/organizer/OrgDashboard.jsx";
 import CreateEvent from "./pages/organizer/CreateEvent.jsx";
@@ -102,7 +102,7 @@ export default function App() {
 
   const removeToast = id => setToasts(t => t.filter(x => x.id !== id));
   const nav = useCallback((v, param = null) => { setView(v); setEvParam(param); }, []);
-  const logout = () => { setUser(null); setView("landing"); storSet(KEYS.USER, null); storSet(KEYS.VIEW, "landing"); };
+  const logout = () => { setUser(null); setView("landing"); storSet(KEYS.USER, null); storSet(KEYS.VIEW, "landing"); storSet(KEYS.TOKEN, null); };
   const getOrg = useCallback(u => organizers.find(o => o.id === (u?.id || u?.orgId)), [organizers]);
 
   // ── Send verification email ───────────────────────────────
@@ -296,11 +296,13 @@ export default function App() {
 
   const handleLogin = u => {
     setUser(u);
-    // Expose payment config globally so PublicEventPage can read it
-    const org = organizers.find(o => o.id === (u?.id || u?.orgId));
+    // Expose payment config globally so PublicEventPage can read it.
+    // (organizers array is still loaded from Supabase for public/event data —
+    // only auth itself now comes from the API.)
+    const org = organizers.find(o => o.id === u?.orgId);
     if (org?.paymentConfig) window._evPayCfg = org.paymentConfig;
     nav(u.role === "admin" ? "admin" : u.role === "staff" ? "scanner" : "dashboard");
-    notify(`Welcome back, ${u.name || u.contactName}!`);
+    notify(`Welcome back, ${u.name || u.email}!`);
   };
 
   const approveOrg = id => {
@@ -417,7 +419,7 @@ export default function App() {
         }} notify={notify} />
     );
     if (view === "register") return <Register onSubmit={handleRegister} onNav={v=>{setRegisterError("");nav(v);}} error={registerError} loading={registerLoading}/>;
-    if (view === "login")    return <Login organizers={organizers} onLogin={handleLogin} onNav={nav} />;
+    if (view === "login")    return <Login onLogin={handleLogin} onNav={nav} />;
     if (view === "forgot-password") return <ForgotPassword onSendCode={handleForgotSend} onVerifyReset={handleForgotVerify} onResendCode={(em,cb)=>handleForgotSend(em,cb)} onBack={()=>nav("login")} loading={forgotLoading}/>;
     if (view === "how-it-works") return <HowItWorks onNav={nav} />;
     if (view === "about")    return <About onNav={nav} />;

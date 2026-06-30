@@ -57,9 +57,13 @@ app.use((err, _req, res, _next) => {
 });
 
 // ── Start ────────────────────────────────────────────────────
-app.listen(config.port, () => {
-  console.log(`\n🚀 Evenova API running on http://localhost:${config.port}`);
-  console.log(`   ENV: ${config.env}  |  Email: ${config.email.provider}`);
-});
+// On Vercel, the platform calls the exported `app` directly as a request
+// handler per-invocation — it must NOT bind to a port itself.
+if (!process.env.VERCEL) {
+  app.listen(config.port, () => {
+    console.log(`\n🚀 Evenova API running on http://localhost:${config.port}`);
+    console.log(`   ENV: ${config.env}  |  Email: ${config.email.provider}`);
+  });
+}
 
 export default app;

@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { GA, T } from "../styles/theme.js";
-import { Bdg, Btn, Card, Inp } from "../components/ui/index.jsx";
+import { Btn, Card, Inp } from "../components/ui/index.jsx";
+import { api } from "../utils/api.js";
+import { KEYS, storSet } from "../utils/storage.js";
 
 function EyeIcon({ open }) {
   return open ? (
@@ -17,57 +19,39 @@ function EyeIcon({ open }) {
   );
 }
 
-export default function Login({ organizers, onLogin, onNav }) {
+export default function Login({ onLogin, onNav }) {
   const [email, setEmail]   = useState("");
   const [pw, setPw]         = useState("");
   const [err, setErr]       = useState("");
-  const [errType, setErrType] = useState(""); // "no_account" | "wrong_pw" | "pending" | "rejected" | "verifying" | ""
+  const [errType, setErrType] = useState(""); // "no_account" | "wrong_pw" | "pending" | "rejected" | ""
   const [showPw, setShowPw] = useState(false);
-  const [adminMode, setAdminMode] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(()=>{
-    const h = e => { if(e.ctrlKey&&e.shiftKey&&e.key==="A") setAdminMode(true); };
-    window.addEventListener("keydown",h);
-    return ()=>window.removeEventListener("keydown",h);
-  },[]);
-
-  const handle = () => {
+  const handle = async () => {
     setErr(""); setErrType("");
+    if (!email || !pw) { setErr("Email and password are required."); return; }
 
-    // Admin backdoor
-    if (adminMode && email==="owner@evenova.ng" && pw==="EvenovaOwner#2025") {
-      onLogin({ id:"admin", name:"Platform Admin", role:"admin" }); return;
-    }
-
-    // Check staff first (any org)
-    for (const org of organizers) {
-      const staff = org.staff?.find(s=>s.email===email);
-      if (staff) {
-        if (staff.password !== pw) {
-          setErr("Incorrect password."); setErrType("wrong_pw"); return;
-        }
-        onLogin({...staff, orgId:org.id, orgName:org.name, role:"staff"}); return;
+    setLoading(true);
+    try {
+      const { token, user } = await api.login(email, pw);
+      storSet(KEYS.TOKEN, token);
+      onLogin(user);
+    } catch (e) {
+      // Map the backend's error responses to the UI hints this page already has.
+      if (e.status === 403 && /pending/i.test(e.message)) {
+        setErr("Your application is under review. We'll notify you within 24–48 hrs."); setErrType("pending");
+      } else if (e.status === 403) {
+        setErr("Your application was not approved. Contact support@evenova.ng for help."); setErrType("rejected");
+      } else if (e.status === 401) {
+        // The API intentionally doesn't distinguish "no account" from "wrong password"
+        // (avoids leaking which emails are registered) — show a neutral message.
+        setErr("Incorrect email or password."); setErrType("wrong_pw");
+      } else {
+        setErr(e.message || "Something went wrong. Please try again.");
       }
+    } finally {
+      setLoading(false);
     }
-
-    // Check organizer accounts
-    const matchEmail = organizers.find(o => o.email === email);
-    if (!matchEmail) {
-      setErr("No account found with this email."); setErrType("no_account"); return;
-    }
-    if (matchEmail.status === "verifying") {
-      setErr("Email not verified yet. Check your inbox for the verification code."); setErrType("verifying"); return;
-    }
-    if (matchEmail.status === "pending") {
-      setErr("Your application is under review. We'll notify you within 24–48 hrs."); setErrType("pending"); return;
-    }
-    if (matchEmail.status === "rejected") {
-      setErr("Your application was not approved. Contact support@evenova.ng for help."); setErrType("rejected"); return;
-    }
-    if (matchEmail.password !== pw) {
-      setErr("Incorrect password."); setErrType("wrong_pw"); return;
-    }
-    onLogin({...matchEmail, role:"organizer"});
   };
 
   // Action hint beneath the error
@@ -101,7 +85,7 @@ export default function Login({ organizers, onLogin, onNav }) {
             justifyContent:"center",margin:"0 auto 12px"}}><Sparkles size={24} color="white"/></div>
           <h1 className="outfit" style={{fontSize:26,fontWeight:800,color:T.text}}>Welcome back</h1>
           <p style={{color:T.muted,fontSize:14,marginTop:4}}>Sign in to your Evenova account</p>
-          {adminMode && <Bdg color="red" sz="md" style={{marginTop:8}}>Admin Mode Active</Bdg>}
+          {/* (admin mode badge removed along with the keyboard backdoor) */}
         </div>
         <Card style={{padding:28}}>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -144,7 +128,7 @@ export default function Login({ organizers, onLogin, onNav }) {
               </div>
             )}
 
-            <Btn full sz="lg" onClick={handle}>Sign In</Btn>
+            <Btn full sz="lg" onClick={handle} disabled={loading}>{loading ? "Signing in…" : "Sign In"}</Btn>
           </div>
         </Card>
 
