@@ -249,7 +249,7 @@ export default function Register({ onSubmit, onNav, error = "", loading = false 
               <PwField label="Create Password" value={form.pw} onChange={set("pw")} required hint={err.pw}/>
               <PwField label="Confirm Password" value={form.pw2} onChange={set("pw2")} required hint={err.pw2}/>
               <div style={{ padding:12,borderRadius:10,background:"var(--ev-gold)15",border:"1px solid var(--ev-gold)30",fontSize:12,color:"var(--ev-gold)" }}>
-                <Bell size={12} style={{ display:"inline",marginRight:6 }}/>A 6-digit verification code will be sent to <strong>{form.email}</strong> immediately.
+                <Bell size={12} style={{ display:"inline",marginRight:6 }}/>A verification link will be sent to <strong>{form.email}</strong> after you submit.
               </div>
               <div style={{ display:"flex",gap:10 }}>
                 <Btn v="secondary" onClick={() => setStep(1)} disabled={loading}><ChevronLeft size={14}/>Back</Btn>
