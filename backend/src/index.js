@@ -15,11 +15,21 @@ import whatsappRoutes  from "./routes/whatsapp.js";
 const app = express();
 
 // ── Security & Logging ──────────────────────────────────────
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({
-  origin: config.cors.origins,
+  origin: (origin, cb) => {
+    // Allow requests with no origin (mobile apps, curl, Vercel health checks)
+    if (!origin) return cb(null, true);
+    const allowed = config.cors.origins;
+    if (allowed.includes(origin) || allowed.includes("*")) return cb(null, true);
+    cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
+  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization"],
 }));
+// Handle preflight for all routes
+app.options("*", cors());
 app.use(morgan(config.isDev ? "dev" : "combined"));
 
 // ── Body Parsing ────────────────────────────────────────────
