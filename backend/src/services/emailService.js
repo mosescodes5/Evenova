@@ -361,11 +361,54 @@ async function sendTicketEmail(ticket, recipientEmail, event, ticketType) {
   });
 }
 
+// ─── Verification email (account email confirmation) ──────────────────────────
+function buildVerificationHtml(name, link) {
+  return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px;">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);">
+    <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:32px;text-align:center;color:#fff;">
+      <h1 style="margin:0;font-size:22px;font-weight:800;">Confirm your email</h1>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="font-size:14px;color:#333;line-height:1.6;">Hi ${name || "there"},</p>
+      <p style="font-size:14px;color:#333;line-height:1.6;">
+        Thanks for signing up for Evenova. Click the button below to confirm your email address and continue setting up your account.
+      </p>
+      <div style="text-align:center;margin:28px 0;">
+        <a href="${link}" style="display:inline-block;padding:14px 32px;border-radius:10px;background:#7c3aed;color:#fff;text-decoration:none;font-weight:700;font-size:14px;">
+          Verify Email Address
+        </a>
+      </div>
+      <p style="font-size:12px;color:#999;line-height:1.6;">
+        This link expires in 24 hours. If the button doesn't work, copy and paste this URL into your browser:<br>
+        <span style="word-break:break-all;color:#7c3aed;">${link}</span>
+      </p>
+      <p style="font-size:12px;color:#999;">If you didn't create an account with Evenova, you can safely ignore this email.</p>
+    </div>
+    <div style="padding:16px 32px;background:#fafafa;text-align:center;font-size:12px;color:#999;border-top:1px solid #f0f0f0;">
+      Evenova · hello.evenova@gmail.com
+    </div>
+  </div>
+</body></html>`;
+}
+
+async function sendVerificationEmail(toEmail, toName, token) {
+  const link = `${config.frontendUrl}/?view=verify-email&token=${encodeURIComponent(token)}`;
+  return send({
+    to: toEmail,
+    toName,
+    subject: "Confirm your email — Evenova",
+    htmlBody: buildVerificationHtml(toName, link),
+  });
+}
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export const emailService = {
   send,
   blast,
   sendTicketEmail,
+  sendVerificationEmail,
   buildTicketHtml,
   configure:   configureEmail,
   getStatus:   getEmailStatus,

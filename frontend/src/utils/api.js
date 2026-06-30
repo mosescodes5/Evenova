@@ -29,5 +29,7 @@ async function request(path, { method = "GET", body, token } = {}) {
 export const api = {
   login: (email, password) => request("/auth/login", { method: "POST", body: { email, password } }),
   register: (payload) => request("/auth/register", { method: "POST", body: payload }),
+  verifyEmail: (token) => request("/auth/verify-email", { method: "POST", body: { token } }),
+  resendVerification: (email) => request("/auth/resend-verification", { method: "POST", body: { email } }),
   logout: (token) => request("/auth/logout", { method: "POST", token }),
 };

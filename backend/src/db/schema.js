@@ -36,6 +36,9 @@ export const users = pgTable("users", {
   role: roleEnum("role").notNull(),
   orgId: uuid("org_id").references(() => organizers.id, { onDelete: "cascade" }),
   status: orgStatusEnum("status").default("approved").notNull(), // org owners start pending; staff approved by default
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  verificationToken: text("verification_token"),
+  verificationExpires: timestamp("verification_expires"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   emailIdx: uniqueIndex("users_email_idx").on(t.email),

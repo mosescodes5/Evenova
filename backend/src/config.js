@@ -15,6 +15,8 @@ export const config = {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   },
 
+  frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
+
   db: {
     url: process.env.DATABASE_URL || process.env.MONGO_URI || "",
   },

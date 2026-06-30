@@ -17,7 +17,7 @@ async function upsertUser({ email, password, name, role, orgId, status = "approv
   }
   const passwordHash = await bcrypt.hash(password, 12);
   const [user] = await db.insert(users).values({
-    email, passwordHash, name, role, orgId, status,
+    email, passwordHash, name, role, orgId, status, emailVerified: true,
   }).returning();
   console.log(`✓  created ${role} ${email}`);
   return user;
