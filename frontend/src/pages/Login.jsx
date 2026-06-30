@@ -38,7 +38,9 @@ export default function Login({ onLogin, onNav }) {
       onLogin(user);
     } catch (e) {
       // Map the backend's error responses to the UI hints this page already has.
-      if (e.status === 403 && /pending/i.test(e.message)) {
+      if (e.status === 403 && e.code === "EMAIL_NOT_VERIFIED") {
+        setErr("Please verify your email before logging in."); setErrType("verifying");
+      } else if (e.status === 403 && /pending/i.test(e.message)) {
         setErr("Your application is under review. We'll notify you within 24–48 hrs."); setErrType("pending");
       } else if (e.status === 403) {
         setErr("Your application was not approved. Contact support@evenova.ng for help."); setErrType("rejected");

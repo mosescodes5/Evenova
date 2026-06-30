@@ -7,6 +7,7 @@ import { DEFAULT_EVENTS, DEFAULT_ORGS } from "./data/seedData.js";
 import * as db from "./utils/db.js";
 import { sendEmail } from "./utils/email.js";
 import { KEYS, storGet, storSet } from "./utils/storage.js";
+import { api } from "./utils/api.js";
 
 import { Btn, Card, Bdg, Toast } from "./components/ui/index.jsx";
 import PublicHeader from "./components/PublicHeader.jsx";
@@ -54,7 +55,6 @@ export default function App() {
   const [user, setUser]                 = useState(() => storGet(KEYS.USER, null));
   const [toasts, setToasts]             = useState([]);
   const [offline, setOffline]           = useState(false);
-  const [verifyTarget, setVerifyTarget] = useState(null);
   const [registerError, setRegisterError]   = useState("");
   const [registerLoading, setRegisterLoading] = useState(false);
   const [forgotLoading, setForgotLoading]     = useState(false);
@@ -93,6 +93,17 @@ export default function App() {
   useEffect(() => { storSet(KEYS.VIEW, view); }, [view]);
   useEffect(() => { storSet(KEYS.SCANNED, scanned); }, [scanned]);
 
+  // ── Land on verify-email if the URL carries a token (emailed link) ──
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("view") === "verify-email" && params.get("token")) {
+      setView("verify-email");
+      setEvParam({ token: params.get("token") });
+      // Clean the token out of the address bar.
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   // ── Helpers ───────────────────────────────────────────────
   const notify = useCallback((msg, type = "success") => {
     const id = genId("T");
@@ -105,57 +116,26 @@ export default function App() {
   const logout = () => { setUser(null); setView("landing"); storSet(KEYS.USER, null); storSet(KEYS.VIEW, "landing"); storSet(KEYS.TOKEN, null); };
   const getOrg = useCallback(u => organizers.find(o => o.id === (u?.id || u?.orgId)), [organizers]);
 
-  // ── Send verification email ───────────────────────────────
-  const sendVerifyCode = async (org, code) => {
-    try {
-      await sendEmail({
-        to: org.email,
-        toName: org.contactName || org.name,
-        subject: "Your Evenova Verification Code",
-        htmlBody: `
-          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
-            <h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Verify your Evenova account</h2>
-            <p style="color:#64748b;margin-bottom:24px;">Hi ${org.contactName || org.name}, enter this code to activate your account:</p>
-            <div style="background:#f1f5f9;border-radius:16px;padding:24px;text-align:center;margin-bottom:24px;">
-              <p style="font-size:42px;font-weight:900;letter-spacing:12px;color:#1e293b;font-family:monospace;margin:0;">${code}</p>
-            </div>
-            <p style="color:#94a3b8;font-size:13px;">This code expires in 30 minutes. If you didn't register on Evenova, ignore this email.</p>
-          </div>`,
-        fromName: "Evenova",
-        fromEmail: "hello.evenova@gmail.com",
-      });
-    } catch {
-      console.log(`[Evenova] Verification code for ${org.email}: ${code}`);
-    }
-  };
-
-  // ── Registration with email verify ───────────────────────
+  // ── Registration with email verify ────────────────────────
+  // Password is collected up-front (Register.jsx step 2) and sent to the
+  // backend in this same call, which hashes it and stores the user before
+  // ever emailing a verification link — so the account's password is set
+  // before the link is generated, not after.
   const handleRegister = async (data) => {
     setRegisterError("");
     setRegisterLoading(true);
     try {
-      const existing = await db.getOrganizerByEmail(data.email);
-      if (existing) {
-        setRegisterError("email_exists");
-        setRegisterLoading(false);
-        return;
-      }
+      await api.register({
+        name: data.accountType === "organisation" ? data.name : data.contactName,
+        contactName: data.contactName,
+        email: data.email,
+        phone: data.phone,
+        password: data.password,
+        accountType: data.accountType,
+        expectedGuests: data.teamSize,
+      });
     } catch (e) {
-      console.error("Email check failed:", e);
-    }
-
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const newOrg = {
-      ...data,
-      status: "pending",
-      verifyCode: code,
-      verifyExpiry: Date.now() + 30 * 60 * 1000,
-    };
-    try {
-      await db.saveOrganizer(newOrg);
-    } catch (e) {
-      console.error("saveOrganizer failed:", e);
-      if (e?.code === "23505" || e?.message?.includes("duplicate") || e?.message?.includes("unique")) {
+      if (e.status === 409) {
         setRegisterError("email_exists");
       } else {
         setRegisterError("Registration failed: " + (e.message || "Please try again."));
@@ -163,12 +143,9 @@ export default function App() {
       setRegisterLoading(false);
       return;
     }
-    setOrgs(o => [...o, newOrg]);
-    setVerifyTarget({ orgId: data.id, email: data.email, code });
-    await sendVerifyCode(newOrg, code);
     setRegisterLoading(false);
-    notify("Verification code sent to your email!", "info");
-    nav("verify-email");
+    notify("Application submitted! Check your email to verify your address.", "info");
+    nav("verify-email", { email: data.email });
   };
 
   // ── Forgot password ───────────────────────────────────────
@@ -268,31 +245,6 @@ export default function App() {
     }));
     notify("Payment rejected.", "error");
   }, [notify]);
-
-  const handleVerifyCode = (entered) => {
-    if (!verifyTarget || entered !== verifyTarget.code) return false;
-    const updated = { verifyCode: null, verifyExpiry: null, status: "approved" };
-    setOrgs(o => o.map(x => x.id === verifyTarget.orgId ? { ...x, ...updated } : x));
-    db.saveOrganizer({ ...organizers.find(o => o.id === verifyTarget.orgId), ...updated })
-      .catch(console.error);
-    notify("Account verified and activated! You can now log in.");
-    setVerifyTarget(null);
-    nav("login");
-    return true;
-  };
-
-  const handleResendCode = async () => {
-    if (!verifyTarget) return;
-    const newCode = String(Math.floor(100000 + Math.random() * 900000));
-    const org = organizers.find(o => o.id === verifyTarget.orgId);
-    if (!org) return;
-    const updated = { ...org, verifyCode: newCode, verifyExpiry: Date.now() + 30 * 60 * 1000 };
-    setVerifyTarget(v => ({ ...v, code: newCode }));
-    setOrgs(o => o.map(x => x.id === verifyTarget.orgId ? updated : x));
-    db.saveOrganizer(updated).catch(console.error);
-    await sendVerifyCode(updated, newCode);
-    notify("New code sent!", "info");
-  };
 
   const handleLogin = u => {
     setUser(u);
@@ -398,7 +350,7 @@ export default function App() {
 
   const renderScreen = () => {
     if (view === "verify-email") return (
-      <VerifyEmail email={verifyTarget?.email || ""} onVerify={handleVerifyCode} onResend={handleResendCode} />
+      <VerifyEmail email={evParam?.email || ""} token={evParam?.token || null} onNav={nav} />
     );
     if (view === "public-event" && ev) return (
       <PublicEventPage event={ev} onBack={() => nav("explore")}
@@ -512,8 +464,6 @@ export default function App() {
       live:          <LiveDashboard events={events} orgId={activeOrg.id} />,
       revenue:       <RevenueDashboard events={events} orgId={activeOrg.id} />,
       "scan-log":    <ScanLog scanLogs={scanLogs} events={events} orgId={activeOrg.id} />,
-      "email-blast": <EmailBlast org={activeOrg} events={events} user={user} notify={notify} />,
-      "whatsapp-blast": <WhatsAppBlast user={user} notify={notify} />,
       "sponsor-blast": <SponsorBlast org={activeOrg} user={user} notify={notify} />,
       "account-settings": <AccountSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
       "payment-settings": <PaymentSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,

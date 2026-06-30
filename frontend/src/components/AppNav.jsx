@@ -12,8 +12,7 @@ export default function AppNav({ user, onNav, onLogout }) {
     ["dashboard","Dashboard",LayoutDashboard],["events","Events",Calendar],
     ["revenue","Revenue",BarChart3],["payment-settings","Payments",CreditCard],
     ["team","Team",Users],["scanner","Scanner",Scan],["live","Live",Activity],
-    ["scan-log","Scan Log",List],["email-blast","Email Blast",Zap],
-    ["whatsapp-blast","WhatsApp",MessageCircle],
+    ["scan-log","Scan Log",List],
   ];
   const staffLinks = [["scanner","Scanner",Scan],["live","Live",Activity]];
   const adminLinks = [
