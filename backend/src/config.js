@@ -35,7 +35,7 @@ export const config = {
       pass: process.env.SMTP_PASS || "",
     },
     fromName:    process.env.EMAIL_FROM_NAME    || "Evenova",
-    fromAddress: process.env.EMAIL_FROM_ADDRESS || "noreply@evenova.ng",
+    fromAddress: process.env.EMAIL_FROM_ADDRESS || "hello.evenova@gmail.com",
   },
 
   payments: {
@@ -65,7 +65,10 @@ export const config = {
   },
 
   cors: {
-    origins: (process.env.ALLOWED_ORIGINS || "http://localhost:5173").split(","),
+    origins: (
+      process.env.ALLOWED_ORIGINS ||
+      "http://localhost:5173,https://evenova.vercel.app,https://evenova.ng"
+    ).split(","),
   },
 
   ticket: {

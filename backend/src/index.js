@@ -21,7 +21,8 @@ app.use(cors({
     // Allow requests with no origin (mobile apps, curl, Vercel health checks)
     if (!origin) return cb(null, true);
     const allowed = config.cors.origins;
-    if (allowed.includes(origin) || allowed.includes("*")) return cb(null, true);
+    const isVercelPreview = /^https:\/\/evenova-[a-z0-9-]+\.vercel\.app$/.test(origin);
+    if (allowed.includes(origin) || allowed.includes("*") || isVercelPreview) return cb(null, true);
     cb(new Error(`CORS: origin ${origin} not allowed`));
   },
   credentials: true,
