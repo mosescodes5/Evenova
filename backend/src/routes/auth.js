@@ -32,17 +32,29 @@ router.post("/login", authLimiter, async (req, res, next) => {
     const match = await bcrypt.compare(password, user?.passwordHash || "$2a$12$invalidsaltinvalidsaltinvalidsalt");
     if (!user || !match) return res.status(401).json({ error: "Invalid credentials" });
 
-    if (user.status === "pending")  return res.status(403).json({ error: "Account pending approval" });
+    if (!user.emailVerified) return res.status(403).json({ error: "Please verify your email before logging in", code: "EMAIL_NOT_VERIFIED" });
     if (user.status === "rejected") return res.status(403).json({ error: "Account access denied" });
-    if (!user.emailVerified)        return res.status(403).json({ error: "Please verify your email before logging in", code: "EMAIL_NOT_VERIFIED" });
+    // Organizers can log in while pending admin approval — they just get a
+    // read-only/"explore" experience in the dashboard until approved. Other
+    // roles (staff, admin) still require full approval before logging in.
+    if (user.status === "pending" && user.role !== "organizer") {
+      return res.status(403).json({ error: "Account pending approval" });
+    }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, orgId: user.orgId },
+      { id: user.id, email: user.email, role: user.role, orgId: user.orgId, status: user.status },
       config.jwt.secret,
       { expiresIn: config.jwt.expiresIn }
     );
 
-    res.json({ token, user: { id: user.id, email: user.email, role: user.role, name: user.name, orgId: user.orgId } });
+    res.json({
+      token,
+      user: {
+        id: user.id, email: user.email, role: user.role, name: user.name,
+        orgId: user.orgId, status: user.status,
+        approvalPending: user.status === "pending",
+      },
+    });
   } catch (err) { next(err); }
 });
 

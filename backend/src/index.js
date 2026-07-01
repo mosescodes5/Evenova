@@ -11,6 +11,7 @@ import ticketRoutes  from "./routes/tickets.js";
 import webhookRoutes from "./routes/webhooks.js";
 import emailRoutes     from "./routes/email.js";
 import whatsappRoutes  from "./routes/whatsapp.js";
+import adminRoutes     from "./routes/admin.js";
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use("/api/tickets",  ticketRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/email",     emailRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
+app.use("/api/admin",    adminRoutes);
 
 // ── 404 ─────────────────────────────────────────────────────
 app.use((_req, res) => {
