@@ -65,7 +65,6 @@ export default function App() {
     const init = async () => {
       setLoading(true);
       try {
-        await db.seedIfEmpty(DEFAULT_ORGS, DEFAULT_EVENTS);
         const [orgs, evs, logs] = await Promise.all([
           db.loadOrganizers(),
           db.loadEvents(),
