@@ -4,7 +4,7 @@ import { T } from "../../styles/theme.js";
 import { Bdg, Btn, Card, StatCard } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
 
-export default function AdminOrgs({ organizers, onApprove, onReject }) {
+export default function AdminOrgs({ organizers, onApprove, onReject, loading }) {
   const { mobile } = useMedia();
   const [filter, setFilter] = useState("all");
   const list = filter==="all"?organizers:organizers.filter(o=>o.status===filter);
@@ -25,6 +25,8 @@ export default function AdminOrgs({ organizers, onApprove, onReject }) {
               color:filter===v?T.accentL:T.muted,cursor:"pointer"}}>{l}</button>
         ))}
       </div>
+      {loading && <Card style={{padding:40,textAlign:"center"}}><p style={{color:T.muted}}>Loading applications…</p></Card>}
+      {!loading &&
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         {list.map(org=>(
           <Card key={org.id} style={{padding:22}}>
@@ -33,10 +35,12 @@ export default function AdminOrgs({ organizers, onApprove, onReject }) {
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
                   <h3 style={{fontSize:16,fontWeight:700,color:T.text}}>{org.name}</h3>
                   <Bdg color={org.status==="pending"?"gold":org.status==="approved"?"green":"red"}>{org.status}</Bdg>
+                  {org.accountType && <Bdg color="blue">{org.accountType}</Bdg>}
+                  {!org.emailVerified && <Bdg color="red">email unverified</Bdg>}
                 </div>
                 <p style={{fontSize:13,color:T.muted,marginBottom:10}}>{org.contactName}</p>
                 <div style={{display:"flex",flexWrap:"wrap",gap:14}}>
-                  {[[Mail,org.email],[Phone,org.phone],[Shield,`${org.idType}: ${org.idNumber}`],[Users,`${org.staff.length}/${org.teamSize} staff`]].map(([Icon,v],i)=>(
+                  {[[Mail,org.email],[Phone,org.phone],[Shield,`${org.idType||"—"}: ${org.idNumber||"—"}`],[Users,`~${org.expectedGuests||0} expected guests`]].map(([Icon,v],i)=>(
                     <span key={i} style={{fontSize:12,color:T.muted,display:"flex",alignItems:"center",gap:4}}><Icon size={12}/>{v}</span>
                   ))}
                 </div>
@@ -51,11 +55,7 @@ export default function AdminOrgs({ organizers, onApprove, onReject }) {
           </Card>
         ))}
         {list.length===0 && <Card style={{padding:40,textAlign:"center"}}><p style={{color:T.muted}}>No organizers in this category</p></Card>}
-      </div>
+      </div>}
     </div>
   );
 }
-
-/* ─────────────────────────────────────────────────────────────
-   21-B. EMAIL BLAST  — Excel upload · AI cleanup · SES send
-───────────────────────────────────────────────────────────── */

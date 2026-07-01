@@ -44,9 +44,34 @@ import LiveDashboard from "./pages/organizer/LiveDashboard.jsx";
 import AccountSettings from "./pages/organizer/AccountSettings.jsx";
 import PaymentSettings from "./pages/organizer/PaymentSettings.jsx";
 
+/* ── URL routing helpers ─────────────────────────────────────
+   The app is a single-page client-side "view" state machine, but we mirror
+   that state into the real URL (via the History API) so pages have proper
+   shareable paths like /contact, /about, /login instead of staying on "/".
+   A couple of views get friendlier path names than their internal view id. */
+const VIEW_TO_PATH  = { landing: "/", "public-event": "event" };
+const PATH_TO_VIEW  = { event: "public-event" };
+
+function buildPath(view, param) {
+  const base = VIEW_TO_PATH[view] || view;
+  if (base === "/") return "/";
+  const id = param && typeof param === "object" ? param.id : param;
+  return `/${base}${id ? `/${id}` : ""}`;
+}
+
+function parsePath(pathname) {
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts.length === 0) return { view: "landing", param: null };
+  const [first, second] = parts;
+  const view = PATH_TO_VIEW[first] || first;
+  return { view, param: second || null };
+}
+
 export default function App() {
   const [loading, setLoading]           = useState(true);
   const [organizers, setOrgs]           = useState([]);
+  const [orgApplications, setOrgApplications] = useState([]);
+  const [orgAppsLoading, setOrgAppsLoading]   = useState(false);
   const [events, setEvents]             = useState([]);
   const [scanned, setScanned]           = useState({});
   const [scanLogs, setScanLogs]         = useState([]);
@@ -92,15 +117,38 @@ export default function App() {
   useEffect(() => { storSet(KEYS.VIEW, view); }, [view]);
   useEffect(() => { storSet(KEYS.SCANNED, scanned); }, [scanned]);
 
-  // ── Land on verify-email if the URL carries a token (emailed link) ──
+  // ── Land on the right view based on the URL ─────────────────
   useEffect(() => {
+    // Legacy verification links look like /?view=verify-email&token=...
+    // (older emails may still contain this format) — keep supporting them.
     const params = new URLSearchParams(window.location.search);
     if (params.get("view") === "verify-email" && params.get("token")) {
       setView("verify-email");
       setEvParam({ token: params.get("token") });
-      // Clean the token out of the address bar.
-      window.history.replaceState({}, "", window.location.pathname);
+      window.history.replaceState({}, "", "/verify-email");
+      return;
     }
+    // New links look like /verify-email?token=... — token stays a query
+    // param since it's long/opaque, everything else lives in the path.
+    if (window.location.pathname === "/verify-email" && params.get("token")) {
+      setView("verify-email");
+      setEvParam({ token: params.get("token") });
+      return;
+    }
+    const { view: initialView, param } = parsePath(window.location.pathname);
+    setView(initialView);
+    setEvParam(param);
+  }, []);
+
+  // ── Support browser back/forward buttons ────────────────────
+  useEffect(() => {
+    const onPopState = () => {
+      const { view: v, param } = parsePath(window.location.pathname);
+      setView(v);
+      setEvParam(param);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   // ── Helpers ───────────────────────────────────────────────
@@ -111,8 +159,15 @@ export default function App() {
   }, []);
 
   const removeToast = id => setToasts(t => t.filter(x => x.id !== id));
-  const nav = useCallback((v, param = null) => { setView(v); setEvParam(param); }, []);
-  const logout = () => { setUser(null); setView("landing"); storSet(KEYS.USER, null); storSet(KEYS.VIEW, "landing"); storSet(KEYS.TOKEN, null); };
+  const nav = useCallback((v, param = null) => {
+    setView(v);
+    setEvParam(param);
+    const path = buildPath(v, param);
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+    }
+  }, []);
+  const logout = () => { setUser(null); setView("landing"); storSet(KEYS.USER, null); storSet(KEYS.VIEW, "landing"); storSet(KEYS.TOKEN, null); window.history.pushState({}, "", "/"); };
   const getOrg = useCallback(u => organizers.find(o => o.id === (u?.id || u?.orgId)), [organizers]);
 
   // ── Registration with email verify ────────────────────────
@@ -256,24 +311,48 @@ export default function App() {
     notify(`Welcome back, ${u.name || u.email}!`);
   };
 
-  const approveOrg = id => {
-    setOrgs(o => o.map(x => {
-      if (x.id !== id) return x;
-      const updated = { ...x, status: "approved" };
-      db.saveOrganizer(updated).catch(console.error);
-      return updated;
-    }));
-    notify("Organizer approved!");
+  // ── Admin: load organizer applications for review ────────────
+  const loadOrgApplications = useCallback(async () => {
+    const token = storGet(KEYS.TOKEN, null);
+    if (!token) return;
+    setOrgAppsLoading(true);
+    try {
+      const apps = await api.listOrganizerApplications(token);
+      setOrgApplications(apps);
+    } catch (e) {
+      console.error("Failed to load organizer applications", e);
+      notify("Couldn't load organizer applications: " + (e.message || ""), "error");
+    } finally {
+      setOrgAppsLoading(false);
+    }
+  }, [notify]);
+
+  useEffect(() => {
+    if (view === "admin-orgs" && user?.role === "admin") {
+      loadOrgApplications();
+    }
+  }, [view, user, loadOrgApplications]);
+
+  const approveOrg = async (id) => {
+    const token = storGet(KEYS.TOKEN, null);
+    try {
+      await api.approveOrganizerApplication(id, token);
+      setOrgApplications(apps => apps.map(a => a.id === id ? { ...a, status: "approved" } : a));
+      notify("Organizer approved!");
+    } catch (e) {
+      notify("Failed to approve: " + (e.message || ""), "error");
+    }
   };
 
-  const rejectOrg = id => {
-    setOrgs(o => o.map(x => {
-      if (x.id !== id) return x;
-      const updated = { ...x, status: "rejected" };
-      db.saveOrganizer(updated).catch(console.error);
-      return updated;
-    }));
-    notify("Organizer rejected", "error");
+  const rejectOrg = async (id) => {
+    const token = storGet(KEYS.TOKEN, null);
+    try {
+      await api.rejectOrganizerApplication(id, token);
+      setOrgApplications(apps => apps.map(a => a.id === id ? { ...a, status: "rejected" } : a));
+      notify("Organizer rejected", "error");
+    } catch (e) {
+      notify("Failed to reject: " + (e.message || ""), "error");
+    }
   };
 
   const createEvent = ev => {
@@ -382,7 +461,7 @@ export default function App() {
 
     // ── Admin ─────────────────────────────────────────────
     if (user.role === "admin") {
-      if (view === "admin-orgs")     return <AdminOrgs organizers={organizers} onApprove={approveOrg} onReject={rejectOrg} />;
+      if (view === "admin-orgs")     return <AdminOrgs organizers={orgApplications} loading={orgAppsLoading} onApprove={approveOrg} onReject={rejectOrg} />;
       if (view === "admin-revenue")  return <AdminRevenue organizers={organizers} events={events} />;
       if (view === "admin-scan-log") return <AdminScanLogView scanLogs={scanLogs} events={events} organizers={organizers} />;
       if (view === "email-blast")     return <EmailBlast org={null} events={events} user={user} notify={notify} />;
@@ -467,7 +546,23 @@ export default function App() {
       "account-settings": <AccountSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
       "payment-settings": <PaymentSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
     };
-    return screens[view] || screens.dashboard;
+    const screen = screens[view] || screens.dashboard;
+    if (user.status === "pending") {
+      return (
+        <div>
+          <div style={{
+            background: T.gold + "20", border: `1px solid ${T.gold}`, borderRadius: 10,
+            margin: "16px auto 0", maxWidth: 1200, padding: "12px 18px",
+            fontSize: 13, color: T.text, display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <strong>Your account is pending admin approval.</strong>&nbsp;
+            You can explore the dashboard now — some actions may be limited until you're approved.
+          </div>
+          {screen}
+        </div>
+      );
+    }
+    return screen;
   };
 
   const showPublicChrome = isPublic && view !== "verify-email";

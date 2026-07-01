@@ -33,4 +33,9 @@ export const api = {
   verifyEmail: (token) => request("/auth/verify-email", { method: "POST", body: { token } }),
   resendVerification: (email) => request("/auth/resend-verification", { method: "POST", body: { email } }),
   logout: (token) => request("/auth/logout", { method: "POST", token }),
+
+  // Admin — reviewing organizer applications
+  listOrganizerApplications:   (token) => request("/admin/organizers", { token }),
+  approveOrganizerApplication: (id, token) => request(`/admin/organizers/${id}/approve`, { method: "POST", token }),
+  rejectOrganizerApplication:  (id, token) => request(`/admin/organizers/${id}/reject`,  { method: "POST", token }),
 };
