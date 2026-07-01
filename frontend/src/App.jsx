@@ -89,25 +89,33 @@ export default function App() {
   useEffect(() => {
     const init = async () => {
       setLoading(true);
+
+      // Loaded independently (not Promise.all) so a failure in one query
+      // — e.g. scan_logs having a schema mismatch — can't wipe out data
+      // that loaded just fine, like organizers or events.
       try {
-        const [orgs, evs, logs] = await Promise.all([
-          db.loadOrganizers(),
-          db.loadEvents(),
-          db.loadScanLogs(),
-        ]);
-        setOrgs(orgs);
-        setEvents(evs);
-        setScanLogs(logs);
-        setScanned(storGet(KEYS.SCANNED, {}));
+        setOrgs(await db.loadOrganizers());
       } catch (e) {
-        console.error("Supabase load failed, falling back to localStorage", e);
+        console.error("Failed to load organizers from Supabase, falling back to localStorage", e);
         setOrgs(storGet(KEYS.ORGS, DEFAULT_ORGS));
-        setEvents(storGet(KEYS.EVENTS, DEFAULT_EVENTS));
-        setScanLogs(storGet(KEYS.LOGS, []));
-        setScanned(storGet(KEYS.SCANNED, {}));
-      } finally {
-        setLoading(false);
       }
+
+      try {
+        setEvents(await db.loadEvents());
+      } catch (e) {
+        console.error("Failed to load events from Supabase, falling back to localStorage", e);
+        setEvents(storGet(KEYS.EVENTS, DEFAULT_EVENTS));
+      }
+
+      try {
+        setScanLogs(await db.loadScanLogs());
+      } catch (e) {
+        console.error("Failed to load scan logs from Supabase, falling back to localStorage", e);
+        setScanLogs(storGet(KEYS.LOGS, []));
+      }
+
+      setScanned(storGet(KEYS.SCANNED, {}));
+      setLoading(false);
     };
     init();
   }, []);
