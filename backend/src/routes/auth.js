@@ -50,7 +50,7 @@ router.post("/login", authLimiter, async (req, res, next) => {
 // Body: organizer application fields
 router.post("/register", authLimiter, async (req, res, next) => {
   try {
-    const { name, contactName, email, phone, password, idType, idNumber } = req.body;
+    const { name, contactName, email, phone, password, idType, idNumber, accountType, expectedGuests } = req.body;
     if (!email || !password || !name) {
       return res.status(400).json({ error: "name, email and password required" });
     }
@@ -61,8 +61,14 @@ router.post("/register", authLimiter, async (req, res, next) => {
     const existing = await db.query.users.findFirst({ where: eq(users.email, email.toLowerCase()) });
     if (existing) return res.status(409).json({ error: "An account with this email already exists" });
 
+    const isIndividual = accountType === "individual";
+
     const [org] = await db.insert(organizers).values({
-      name, contactName, phone, idType, idNumber, status: "pending",
+      name, contactName, phone, idType, idNumber,
+      accountType: accountType || "individual",
+      expectedGuests,
+      // Individuals don't need manual admin review — organisations still do.
+      status: isIndividual ? "approved" : "pending",
     }).returning();
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -75,7 +81,9 @@ router.post("/register", authLimiter, async (req, res, next) => {
       name: contactName || name,
       role: "organizer",
       orgId: org.id,
-      status: "pending", // requires admin approval before login succeeds
+      // Individuals become "approved" as soon as they verify their email (see /verify-email below).
+      // Organisations remain "pending" until an admin reviews them.
+      status: "pending",
       emailVerified: false,
       verificationToken,
       verificationExpires,
@@ -103,8 +111,19 @@ router.post("/verify-email", authLimiter, async (req, res, next) => {
       return res.status(400).json({ error: "This link is invalid or has expired." });
     }
 
+    const updates = { emailVerified: true, verificationToken: null, verificationExpires: null };
+
+    // Individuals skip manual admin review — they can log in as soon as
+    // their email is verified. Organisations still require admin approval.
+    if (user.status === "pending" && user.orgId) {
+      const org = await db.query.organizers.findFirst({ where: eq(organizers.id, user.orgId) });
+      if (org?.accountType === "individual") {
+        updates.status = "approved";
+      }
+    }
+
     await db.update(users)
-      .set({ emailVerified: true, verificationToken: null, verificationExpires: null })
+      .set(updates)
       .where(eq(users.id, user.id));
 
     res.json({ message: "Email verified! You can now log in." });

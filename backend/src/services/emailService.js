@@ -394,7 +394,7 @@ function buildVerificationHtml(name, link) {
 }
 
 async function sendVerificationEmail(toEmail, toName, token) {
-  const link = `${config.frontendUrl}/?view=verify-email&token=${encodeURIComponent(token)}`;
+  const link = `${config.frontendUrl}/verify-email?token=${encodeURIComponent(token)}`;
   return send({
     to: toEmail,
     toName,
