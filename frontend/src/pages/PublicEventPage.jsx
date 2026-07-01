@@ -6,6 +6,7 @@ import { useMedia } from "../hooks/useMedia.js";
 import { genId, encodeTicket } from "../utils/crypto.js";
 import { sendTicketEmail } from "../utils/email.js";
 import { openPaystackCheckout, openFlutterwaveCheckout } from "../utils/payment.js";
+import { api } from "../utils/api.js";
 
 function CustomField({ field, value, onChange }) {
   const base = { width:"100%",padding:"10px 14px",borderRadius:10,fontSize:14,color:T.text,background:"var(--ev-surface)",border:"1px solid var(--ev-border)",fontFamily:"inherit",transition:"border .18s" };
@@ -77,7 +78,27 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
   const setF = (id,v) => setFormData(f=>({...f,[id]:v}));
   const getPayCfg = () => event.paymentConfig||window._evPayCfg||{};
 
-  const issueTicket = async (payRef, payStatus="free") => {
+  const issueTicket = async (payRef, payStatus="free", provider=null) => {
+    if (payStatus==="paid") {
+      // Never trust the payment popup's onSuccess callback on its own — it
+      // runs entirely in the browser and can be forged. Re-check the
+      // reference against the provider's API server-side before issuing
+      // anything.
+      const expectedAmountKobo = Math.round(calcTotalWithCharge(selType?.price||0) * 100);
+      let verification;
+      try {
+        verification = await api.verifyPayment(payRef, provider, expectedAmountKobo);
+      } catch (e) {
+        setSubmitting(false); setPayStep("form");
+        notify("Couldn't verify your payment: " + (e.message||"please try again."), "error");
+        return;
+      }
+      if (!verification?.verified) {
+        setSubmitting(false); setPayStep("form");
+        notify(verification?.reason || "Payment could not be verified — please try again.", "error");
+        return;
+      }
+    }
     const tId=genId("TKT"),uId=genId("USR");
     const holderName=formData[event.regFields[0]?.id]||"Attendee";
     const holderEmail=formData[event.regFields[1]?.id]||"";
@@ -113,13 +134,13 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
     const chargeAmount = calcTotalWithCharge(selType.price);
     if (payProvider==="paystack") {
       setSubmitting(false); setPayStep("paying");
-      try { await openPaystackCheckout({ email:holderEmail,name:holderName,amount:chargeAmount,eventTitle:event.title,onSuccess:async(ref)=>{setSubmitting(true);await issueTicket(ref,"paid")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
+      try { await openPaystackCheckout({ email:holderEmail,name:holderName,amount:chargeAmount,eventTitle:event.title,onSuccess:async(ref)=>{setSubmitting(true);await issueTicket(ref,"paid","paystack")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
       catch(e) { setPayStep("form");notify(e.message,"error"); }
       return;
     }
     if (payProvider==="flutterwave") {
       setSubmitting(false); setPayStep("paying");
-      try { await openFlutterwaveCheckout({ email:holderEmail,name:holderName,phone:holderPhone,amount:chargeAmount,eventTitle:event.title,onSuccess:async(txId)=>{setSubmitting(true);await issueTicket(String(txId),"paid")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
+      try { await openFlutterwaveCheckout({ email:holderEmail,name:holderName,phone:holderPhone,amount:chargeAmount,eventTitle:event.title,onSuccess:async(txId)=>{setSubmitting(true);await issueTicket(String(txId),"paid","flutterwave")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
       catch(e) { setPayStep("form");notify(e.message,"error"); }
       return;
     }
@@ -140,9 +161,29 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
           <p style={{ color:"var(--ev-muted)",marginBottom:20,lineHeight:1.6 }}>
             {isPending?"We've received your receipt. Your ticket will be emailed once payment is confirmed.":success.ticket?.paymentStatus==="paid"?"Payment confirmed. Your ticket has been emailed to you.":"Your free ticket has been emailed to you."}
           </p>
-          {!isPending&&(
-            <div className="glass-card" style={{ padding:0,marginBottom:20,overflow:"hidden",textAlign:"left" }}>
-              {tp?.ticketImage&&<div style={{ height:120,overflow:"hidden",position:"relative" }}><img src={tp.ticketImage} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/><div style={{ position:"absolute",inset:0,background:"linear-gradient(to bottom,transparent 40%,rgba(8,8,15,.9))" }}/><div style={{ position:"absolute",bottom:12,left:20 }}><p style={{ fontSize:11,color:"rgba(255,255,255,.6)",textTransform:"uppercase",letterSpacing:".1em" }}>{event.title}</p><p style={{ fontSize:18,fontWeight:800,color:"white" }}>{tp?.name}</p></div></div>}
+          {!isPending&&(()=>{
+            const bgImg = tp?.ticketImage || event.coverImage || "";
+            return (
+            <div className="glass-card" style={{ padding:0,marginBottom:20,overflow:"hidden",textAlign:"left",borderRadius:20,position:"relative" }}>
+              <div style={{
+                minHeight:180, position:"relative", padding:22, boxSizing:"border-box",
+                display:"flex", flexDirection:"column", justifyContent:"flex-end",
+                ...(bgImg
+                  ? { backgroundImage:`url(${bgImg})`, backgroundSize:"cover", backgroundPosition:"center" }
+                  : { background:"linear-gradient(135deg,#7c3aed,#a855f7)" }),
+              }}>
+                <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom, rgba(15,8,30,.15), rgba(10,5,20,.9))" }}/>
+                <div style={{ position:"relative", color:"#fff" }}>
+                  <p style={{ fontSize:11,fontWeight:800,letterSpacing:".14em",textTransform:"uppercase",opacity:.75,margin:"0 0 6px" }}>Evenova · Admit One</p>
+                  <p style={{ fontSize:20,fontWeight:800,margin:"0 0 4px",lineHeight:1.25 }}>{event.title}</p>
+                  <p style={{ fontSize:13,opacity:.85,margin:0 }}>{tp?.name || "General"} · {success.ticket?.holderName || "Attendee"}</p>
+                </div>
+              </div>
+              <div style={{ position:"relative", height:0 }}>
+                <div style={{ position:"absolute",top:-11,left:-11,width:22,height:22,borderRadius:"50%",background:"var(--ev-bg)" }}/>
+                <div style={{ position:"absolute",top:-11,right:-11,width:22,height:22,borderRadius:"50%",background:"var(--ev-bg)" }}/>
+              </div>
+              <div style={{ borderTop:"2px dashed var(--ev-border, rgba(255,255,255,.15))", margin:"0 22px" }}/>
               <div style={{ padding:20 }}>
                 <div style={{ display:"flex",justifyContent:"center",marginBottom:16 }}><QRDisplay value={success.code} size={180}/></div>
                 <div style={{ background:"var(--ev-surface)",borderRadius:10,padding:"10px 14px",marginBottom:12 }}>
@@ -153,7 +194,8 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
                 {success.ticket?.holderEmail&&<p style={{ fontSize:12,color:"var(--ev-muted)",marginTop:8,textAlign:"center" }}><Mail size={11} style={{ display:"inline",marginRight:4 }}/>Emailed to {success.ticket.holderEmail}</p>}
               </div>
             </div>
-          )}
+            );
+          })()}
           <Btn full v="secondary" onClick={onBack}>Back to Events</Btn>
         </div>
       </div>

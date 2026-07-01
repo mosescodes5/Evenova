@@ -38,4 +38,8 @@ export const api = {
   listOrganizerApplications:   (token) => request("/admin/organizers", { token }),
   approveOrganizerApplication: (id, token) => request(`/admin/organizers/${id}/approve`, { method: "POST", token }),
   rejectOrganizerApplication:  (id, token) => request(`/admin/organizers/${id}/reject`,  { method: "POST", token }),
+
+  // Payments — server-side re-verification before issuing a paid ticket
+  verifyPayment: (reference, provider, expectedAmountKobo) =>
+    request("/payments/verify", { method: "POST", body: { reference, provider, expectedAmountKobo } }),
 };

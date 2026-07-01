@@ -9,7 +9,7 @@ import { DEF_FIELDS } from "../../data/seedData.js";
 export default function CreateEvent({ org, onSubmit, onBack }) {
   const { mobile } = useMedia();
   const [step, setStep] = useState(1);
-  const [det, setDet] = useState({ title:"", desc:"", date:"", time:"18:00", endTime:"22:00", venue:"", city:"Lagos", category:"Music", banner:"music" });
+  const [det, setDet] = useState({ title:"", desc:"", date:"", time:"18:00", endTime:"22:00", venue:"", city:"Lagos", category:"Music", banner:"music", coverImage:"" });
   const [gates, setGates] = useState([
     { id:genId("GT"), name:"Main Entrance", color:"#7c3aed" },
     { id:genId("GT"), name:"VIP Gate",      color:"#f59e0b" },
@@ -32,6 +32,12 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = e => setType(id, "ticketImage", e.target.result);
+    reader.readAsDataURL(file);
+  };
+  const handleCoverImage = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => setD("coverImage")(e.target.result);
     reader.readAsDataURL(file);
   };
   const addField = () => setFields(f=>[...f,{id:genId("FL"),label:"Custom Field",type:"text",required:false,placeholder:""}]);
@@ -90,6 +96,25 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
             <div className="g2">
               <Inp label="City" value={det.city} onChange={setD("city")} options={["Lagos","Abuja","Port Harcourt","Kano","Ibadan","Enugu"].map(v=>({value:v,label:v}))}/>
               <Inp label="Tickets to Generate" type="number" value={count} onChange={setCount}/>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8}}>Event Image (used as the ticket background)</label>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                {det.coverImage
+                  ? <div style={{position:"relative",width:120,height:68,borderRadius:8,overflow:"hidden",border:"1px solid #33415540"}}>
+                      <img src={det.coverImage} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                      <button onClick={()=>setD("coverImage")("")} style={{position:"absolute",top:2,right:2,width:16,height:16,borderRadius:4,background:"rgba(0,0,0,.7)",border:"none",color:"white",fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                    </div>
+                  : <div style={{width:120,height:68,borderRadius:8,border:"1.5px dashed #7c3aed50",background:"#7c3aed08",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      <Image size={20} color="#7c3aed80"/>
+                    </div>
+                }
+                <label style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",borderRadius:10,border:"1px solid #334155",background:"transparent",color:"#94a3b8",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                  <Upload size={13}/>{det.coverImage?"Change":"Upload Image"}
+                  <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleCoverImage(e.target.files[0])}/>
+                </label>
+              </div>
+              <p style={{fontSize:11,color:"#64748b",marginTop:8}}>Shown on the event page and used as the ticket background for attendees. Individual ticket tiers can override this with their own art in the next step.</p>
             </div>
           </div>
           <Btn full style={{marginTop:20}} onClick={()=>det.title&&det.date&&det.venue?setStep(2):null}>Next: Configure Gates <ChevronRight size={14}/></Btn>

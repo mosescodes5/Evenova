@@ -80,40 +80,80 @@ export async function sendBlast({ recipients, subject, htmlBody, fromName, fromE
 /* ── Ticket email ──────────────────────────────────────────── */
 export async function buildTicketHtml(ticket, event, ticketType) {
   const color = ticketType?.color || "#7c3aed";
+  // Prefer the ticket tier's own image, then the event cover image, then
+  // fall back to the brand gradient if the organizer hasn't uploaded either.
+  const bgImage = ticketType?.ticketImage || event.coverImage || "";
+
+  // Generate a REAL, scannable QR code (not just text) from the same signed
+  // payload the gate scanner verifies against (ticket.code).
+  let qrDataUrl = "";
+  try {
+    const QRCode = await import("qrcode");
+    qrDataUrl = await QRCode.toDataURL(ticket.code, {
+      margin: 1, width: 320,
+      color: { dark: "#1a1a1a", light: "#ffffff" },
+    });
+  } catch (e) {
+    console.error("QR generation failed, falling back to text code", e);
+  }
+
+  const heroStyle = bgImage
+    ? `background-image:url('${bgImage}');background-size:cover;background-position:center;`
+    : `background:linear-gradient(135deg,#7c3aed,#a855f7);`;
+
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <style>
   body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px;}
-  .wrap{max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);}
-  .header{background:linear-gradient(135deg,#7c3aed,#a855f7);padding:32px;text-align:center;color:#fff;}
-  .header h1{margin:0;font-size:26px;font-weight:800;}
-  .header p{margin:6px 0 0;opacity:.8;font-size:14px;}
-  .body{padding:28px 32px;}
-  .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;}
+  .wrap{max-width:520px;margin:0 auto;}
+  .card{position:relative;border-radius:20px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.16);background:#fff;}
+  .hero{${heroStyle}position:relative;min-height:200px;padding:24px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-end;}
+  .hero-overlay{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(15,8,30,.15),rgba(10,5,20,.88));}
+  .hero-inner{position:relative;color:#fff;}
+  .eyebrow{margin:0 0 6px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;opacity:.75;}
+  .ev-title{margin:0 0 4px;font-size:22px;font-weight:800;line-height:1.25;}
+  .ev-sub{margin:0;font-size:13px;opacity:.85;}
+  .seam{position:relative;height:0;}
+  .notch{position:absolute;top:-11px;width:22px;height:22px;border-radius:50%;background:#f5f5f5;}
+  .notch-l{left:-11px;} .notch-r{right:-11px;}
+  .dashes{border-top:2px dashed rgba(0,0,0,.14);margin:0 22px;}
+  .stub{padding:26px 28px 8px;text-align:center;}
+  .qr-wrap{background:#fff;border:1px solid #f0f0f0;border-radius:14px;padding:16px;display:inline-block;}
+  .tier{display:inline-block;padding:4px 14px;border-radius:100px;font-size:12px;font-weight:700;background:${color}22;color:${color};border:1px solid ${color}44;margin-bottom:14px;}
+  .details{padding:6px 28px 24px;}
+  .row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f0f0f0;}
   .label{font-size:12px;color:#999;text-transform:uppercase;letter-spacing:.05em;}
-  .value{font-size:14px;font-weight:600;color:#1a1a1a;}
-  .tier{display:inline-block;padding:4px 14px;border-radius:100px;font-size:12px;font-weight:700;background:${color}22;color:${color};border:1px solid ${color}44;}
-  .qr-box{background:#f8f8f8;border-radius:12px;padding:24px;text-align:center;margin-top:20px;}
-  .qr-code{font-family:monospace;font-size:10px;word-break:break-all;color:#555;background:#fff;padding:12px;border-radius:8px;border:1px solid #eee;display:inline-block;max-width:440px;}
-  .footer{padding:16px 32px;background:#fafafa;text-align:center;font-size:12px;color:#999;border-top:1px solid #f0f0f0;}
+  .value{font-size:14px;font-weight:600;color:#1a1a1a;text-align:right;}
+  .footer{padding:16px 8px;text-align:center;font-size:12px;color:#999;}
 </style></head>
-<body><div class="wrap">
-  <div class="header"><h1>🎟 Your Ticket</h1><p>${event.title}</p></div>
-  <div class="body">
-    <div class="row"><span class="label">Name</span><span class="value">${ticket.holderName || "Attendee"}</span></div>
-    <div class="row"><span class="label">Event</span><span class="value">${event.title}</span></div>
-    <div class="row"><span class="label">Date &amp; Time</span><span class="value">${event.date} at ${event.time}</span></div>
-    <div class="row"><span class="label">Venue</span><span class="value">${event.venue}, ${event.city}</span></div>
-    <div class="row"><span class="label">Ticket Type</span><span class="value"><span class="tier">${ticketType?.name || "General"}</span></span></div>
-    <div class="row"><span class="label">Ticket ID</span><span class="value" style="font-family:monospace;font-size:12px">${ticket.id}</span></div>
-    <div class="qr-box">
-      <p style="font-size:13px;font-weight:700;color:#333;margin:0 0 12px">Show this QR code at the gate</p>
-      <div class="qr-code">${ticket.code}</div>
-      <p style="font-size:11px;color:#aaa;margin:10px 0 0">Cryptographically signed · Cannot be duplicated</p>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="hero">
+      <div class="hero-overlay"></div>
+      <div class="hero-inner">
+        <p class="eyebrow">Evenova · Admit One</p>
+        <p class="ev-title">${event.title}</p>
+        <p class="ev-sub">${event.date} at ${event.time} · ${event.venue}${event.city ? ", " + event.city : ""}</p>
+      </div>
+    </div>
+    <div class="seam"><div class="notch notch-l"></div><div class="notch notch-r"></div></div>
+    <div class="dashes"></div>
+    <div class="stub">
+      <span class="tier">${ticketType?.name || "General"}</span><br>
+      ${qrDataUrl
+        ? `<div class="qr-wrap"><img src="${qrDataUrl}" width="200" height="200" alt="Scan this QR code at the gate"></div>`
+        : `<div class="qr-wrap"><code style="font-size:10px;word-break:break-all;">${ticket.code}</code></div>`}
+      <p style="font-size:11px;color:#aaa;margin:14px 0 0;">Show this at the gate · Cryptographically signed · Cannot be duplicated</p>
+    </div>
+    <div class="details">
+      <div class="row"><span class="label">Name</span><span class="value">${ticket.holderName || "Attendee"}</span></div>
+      <div class="row"><span class="label">Ticket ID</span><span class="value" style="font-family:monospace;font-size:12px">${ticket.id}</span></div>
     </div>
   </div>
   <div class="footer">Powered by Evenova · hello.evenova@gmail.com</div>
-</div></body></html>`;
+</div>
+</body></html>`;
 }
 
 export async function sendTicketEmail(ticket, event, ticketType, notify) {
