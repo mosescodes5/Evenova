@@ -315,25 +315,47 @@ async function blast({
 // ─── Ticket email (unchanged) ─────────────────────────────────────────────────
 function buildTicketHtml(ticket, event, ticketType) {
   const color = ticketType?.color || "#7c3aed";
+  const ticketGif = `${config.frontendUrl}/email-assets/ticket-animation.gif`;
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <style>
   body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px;}
   .wrap{max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);}
-  .header{background:linear-gradient(135deg,#7c3aed,#a855f7);padding:32px;text-align:center;color:#fff;}
-  .header h1{margin:0;font-size:26px;font-weight:800;}
+  .header{background:linear-gradient(135deg,#7c3aed,#a855f7);padding:20px 20px 6px;text-align:center;color:#fff;}
+  .header h1{margin:10px 0 0;font-size:22px;font-weight:800;}
   .header p{margin:6px 0 0;opacity:.8;font-size:14px;}
+  .ticket-hero{max-width:100%;height:auto;display:block;margin:0 auto;}
   .body{padding:28px 32px;}
   .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0;}
   .label{font-size:12px;color:#999;text-transform:uppercase;letter-spacing:.05em;}
   .value{font-size:14px;font-weight:600;color:#1a1a1a;}
   .tier{display:inline-block;padding:4px 14px;border-radius:100px;font-size:12px;font-weight:700;background:${color}22;color:${color};border:1px solid ${color}44;}
-  .qr-box{background:#f8f8f8;border-radius:12px;padding:24px;text-align:center;margin-top:20px;}
+  .qr-box{background:#f8f8f8;border-radius:12px;padding:24px;text-align:center;margin-top:20px;position:relative;overflow:hidden;}
   .qr-code{font-family:monospace;font-size:10px;word-break:break-all;color:#555;background:#fff;padding:12px;border-radius:8px;border:1px solid #eee;display:inline-block;max-width:440px;}
   .footer{padding:16px 32px;background:#fafafa;text-align:center;font-size:12px;color:#999;border-top:1px solid #f0f0f0;}
+
+  /* Progressive-enhancement CSS animation. Most inbox clients (Gmail,
+     Outlook desktop, Yahoo) strip @keyframes entirely and will just show
+     these elements static — that's fine, the GIF above already carries the
+     motion for them. Clients that DO support CSS animation (Apple Mail,
+     iOS Mail, some webmail) get an extra subtle layer of life on top. */
+  @keyframes evGlow {
+    0%, 100% { box-shadow: 0 0 0 0 ${color}33; }
+    50%      { box-shadow: 0 0 0 8px ${color}00; }
+  }
+  @keyframes evPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+  }
+  .qr-box { animation: evGlow 2.4s ease-in-out infinite; }
+  .tier   { animation: evPulse 1.8s ease-in-out infinite; }
 </style></head>
 <body><div class="wrap">
-  <div class="header"><h1>🎟 Your Ticket</h1><p>${event.title}</p></div>
+  <div class="header">
+    <img src="${ticketGif}" width="460" alt="Your ticket" class="ticket-hero">
+    <h1>You're going! 🎟</h1>
+    <p>${event.title}</p>
+  </div>
   <div class="body">
     <div class="row"><span class="label">Name</span><span class="value">${ticket.holderName || "Attendee"}</span></div>
     <div class="row"><span class="label">Event</span><span class="value">${event.title}</span></div>
@@ -363,12 +385,21 @@ async function sendTicketEmail(ticket, recipientEmail, event, ticketType) {
 
 // ─── Verification email (account email confirmation) ──────────────────────────
 function buildVerificationHtml(name, link) {
+  const checkGif = `${config.frontendUrl}/email-assets/check-animation.gif`;
   return `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"></head>
+<html><head><meta charset="UTF-8">
+<style>
+  @keyframes evBtnPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,.35); }
+    50%      { box-shadow: 0 0 0 10px rgba(124,58,237,0); }
+  }
+  .verify-btn { animation: evBtnPulse 2s ease-in-out infinite; }
+</style></head>
 <body style="font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px;">
   <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);">
-    <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:32px;text-align:center;color:#fff;">
-      <h1 style="margin:0;font-size:22px;font-weight:800;">Confirm your email</h1>
+    <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:20px 32px 8px;text-align:center;color:#fff;">
+      <img src="${checkGif}" width="220" alt="" style="display:block;margin:0 auto;">
+      <h1 style="margin:0 0 14px;font-size:22px;font-weight:800;">Confirm your email</h1>
     </div>
     <div style="padding:28px 32px;">
       <p style="font-size:14px;color:#333;line-height:1.6;">Hi ${name || "there"},</p>
@@ -376,7 +407,7 @@ function buildVerificationHtml(name, link) {
         Thanks for signing up for Evenova. Click the button below to confirm your email address and continue setting up your account.
       </p>
       <div style="text-align:center;margin:28px 0;">
-        <a href="${link}" style="display:inline-block;padding:14px 32px;border-radius:10px;background:#7c3aed;color:#fff;text-decoration:none;font-weight:700;font-size:14px;">
+        <a href="${link}" class="verify-btn" style="display:inline-block;padding:14px 32px;border-radius:10px;background:#7c3aed;color:#fff;text-decoration:none;font-weight:700;font-size:14px;">
           Verify Email Address
         </a>
       </div>
