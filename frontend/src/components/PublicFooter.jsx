@@ -5,7 +5,7 @@ import { useMedia } from "../hooks/useMedia.js";
 export default function PublicFooter({ onNav }) {
   const { mobile } = useMedia();
   const cols = [
-    { title:"Platform", links:[["explore","Browse Events"],["register","Become Organizer"],["login","Organizer Login"]] },
+    { title:"Platform", links:[["explore","Browse Events"],["pricing","Pricing"],["register","Become Organizer"],["login","Organizer Login"]] },
     { title:"Company",  links:[["about","About Us"],["contact","Contact Us"],["landing","Careers"]] },
     { title:"Support",  links:[["contact","Help Centre"],["contact","Ticket Issues"],["contact","Organizer Support"]] },
   ];

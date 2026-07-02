@@ -18,6 +18,7 @@ import Landing from './pages/Landing.jsx';
 import HowItWorks from './pages/HowItWorks.jsx';
 import About from "./pages/About.jsx";
 import Contact from "./pages/Contact.jsx";
+import Pricing from "./pages/Pricing.jsx";
 import Explore from "./pages/Explore.jsx";
 import PublicEventPage from "./pages/PublicEventPage.jsx";
 import Register from "./pages/Register.jsx";
@@ -422,7 +423,7 @@ export default function App() {
   const org = user ? getOrg(user) : null;
   const ev  = events.find(e => e.id === evParam);
 
-  const PUBLIC_VIEWS = ["landing","explore","about","contact","how-it-works","public-event","register","login","verify-email","forgot-password"];
+  const PUBLIC_VIEWS = ["landing","explore","about","contact","how-it-works","pricing","public-event","register","login","verify-email","forgot-password"];
   const isPublic = !user || PUBLIC_VIEWS.includes(view);
 
   if (loading) return (
@@ -460,6 +461,7 @@ export default function App() {
     if (view === "login")    return <Login onLogin={handleLogin} onNav={nav} />;
     if (view === "forgot-password") return <ForgotPassword onSendCode={handleForgotSend} onVerifyReset={handleForgotVerify} onResendCode={(em,cb)=>handleForgotSend(em,cb)} onBack={()=>nav("login")} loading={forgotLoading}/>;
     if (view === "how-it-works") return <HowItWorks onNav={nav} />;
+    if (view === "pricing")   return <Pricing onNav={nav} />;
     if (view === "about")    return <About onNav={nav} />;
     if (view === "contact")  return <Contact notify={notify} />;
     if (view === "explore")  return <Explore events={events} onEventPage={id => nav("public-event", id)} />;
@@ -588,7 +590,7 @@ export default function App() {
           </div>
         </AnimatePresence>
       </div>
-      {showPublicChrome && ["landing","about","contact","explore","how-it-works"].includes(view) && (
+      {showPublicChrome && ["landing","about","contact","explore","how-it-works","pricing"].includes(view) && (
         <PublicFooter onNav={nav} />
       )}
     </div>
