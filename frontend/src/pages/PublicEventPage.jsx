@@ -89,7 +89,13 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
       const expectedAmountKobo = Math.round(calcTotalWithCharge(selType?.price||0, event.feeMode) * 100);
       let verification;
       try {
-        verification = await api.verifyPayment(payRef, provider, expectedAmountKobo);
+        verification = await api.verifyPayment(payRef, provider, expectedAmountKobo, {
+          orgId: event.orgId,
+          ticketPriceNaira: selType?.price||0,
+          feeMode: event.feeMode,
+          eventId: event.id,
+          eventTitle: event.title,
+        });
       } catch (e) {
         setSubmitting(false); setPayStep("form");
         notify("Couldn't verify your payment: " + (e.message||"please try again."), "error");
@@ -136,7 +142,7 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
     const holderName=formData[event.regFields[0]?.id]||"Attendee";
     const holderPhone=formData[event.regFields[2]?.id]||"";
     const chargeAmount = calcTotalWithCharge(selType.price, event.feeMode);
-    if (payProvider==="paystack") {
+    if (payProvider==="card"||payProvider==="paystack") {
       setSubmitting(false); setPayStep("paying");
       try { await openPaystackCheckout({ email:holderEmail,name:holderName,amount:chargeAmount,eventTitle:event.title,onSuccess:async(ref)=>{setSubmitting(true);await issueTicket(ref,"paid","paystack")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
       catch(e) { setPayStep("form");notify(e.message,"error"); }

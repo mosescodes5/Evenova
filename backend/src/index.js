@@ -13,6 +13,7 @@ import emailRoutes     from "./routes/email.js";
 import whatsappRoutes  from "./routes/whatsapp.js";
 import adminRoutes     from "./routes/admin.js";
 import paymentsRoutes  from "./routes/payments.js";
+import walletRoutes    from "./routes/wallet.js";
 
 const app = express();
 
@@ -54,6 +55,7 @@ app.use("/api/email",     emailRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/admin",    adminRoutes);
 app.use("/api/payments", paymentsRoutes);
+app.use("/api/wallet",   walletRoutes);
 
 // ── 404 ─────────────────────────────────────────────────────
 app.use((_req, res) => {

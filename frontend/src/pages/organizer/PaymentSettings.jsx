@@ -22,19 +22,16 @@ function Section({ icon: Icon, title, subtitle, children }) {
 }
 
 const PROVIDERS = [
-  { id: "none",        label: "🔓 Free / Manual",  desc: "No payment collected. Tickets are issued immediately on registration." },
-  { id: "paystack",    label: "💳 Paystack",        desc: "Automatic card payments. Ticket issued instantly after payment." },
-  { id: "flutterwave", label: "🦋 Flutterwave",     desc: "Automatic card payments. Ticket issued instantly after payment." },
-  { id: "bank",        label: "🏦 Bank Transfer",   desc: "Attendees pay to your bank account and upload proof of transfer." },
+  { id: "none",   label: "🔓 Free / Manual",  desc: "No payment collected. Tickets are issued immediately on registration." },
+  { id: "card",   label: "💳 Card Payments (Paystack/Flutterwave)", desc: "Enabled automatically — no setup needed. Sales are credited straight to your Evenova wallet; withdraw anytime from Wallet." },
+  { id: "bank",   label: "🏦 Bank Transfer",   desc: "Attendees pay to your bank account and upload proof of transfer." },
 ];
 
 export default function PaymentSettings({ org, onSave, notify }) {
   const { mobile } = useMedia();
 
   const saved = org.paymentConfig || {};
-  const [provider, setProvider]       = useState(saved.provider || "none");
-  const [paystackKey, setPaystackKey] = useState(saved.paystackKey || "");
-  const [flwKey, setFlwKey]           = useState(saved.flwKey || "");
+  const [provider, setProvider]       = useState(saved.provider === "paystack" || saved.provider === "flutterwave" ? "card" : (saved.provider || "none"));
   const [bankName, setBankName]       = useState(saved.bankName || "");
   const [bankAccount, setBankAccount] = useState(saved.bankAccount || "");
   const [bankHolder, setBankHolder]   = useState(saved.bankHolder || "");
@@ -42,12 +39,6 @@ export default function PaymentSettings({ org, onSave, notify }) {
   const [wasSaved, setWasSaved]       = useState(false);
 
   const save = async () => {
-    if (provider === "paystack" && !paystackKey.trim()) {
-      notify("Paste your Paystack public key first.", "error"); return;
-    }
-    if (provider === "flutterwave" && !flwKey.trim()) {
-      notify("Paste your Flutterwave public key first.", "error"); return;
-    }
     if (provider === "bank") {
       if (!bankName.trim() || !bankAccount.trim() || !bankHolder.trim()) {
         notify("Fill in all bank details.", "error"); return;
@@ -55,10 +46,8 @@ export default function PaymentSettings({ org, onSave, notify }) {
     }
     setSaving(true);
     try {
-      const cfg = { provider, paystackKey: paystackKey.trim(), flwKey: flwKey.trim(), bankName: bankName.trim(), bankAccount: bankAccount.trim(), bankHolder: bankHolder.trim() };
+      const cfg = { provider, bankName: bankName.trim(), bankAccount: bankAccount.trim(), bankHolder: bankHolder.trim() };
       await onSave({ paymentConfig: cfg });
-      // Expose globally so PublicEventPage can read it at runtime
-      window._evPayCfg = cfg;
       setWasSaved(true);
       notify("Payment settings saved!");
       setTimeout(() => setWasSaved(false), 3000);
@@ -98,28 +87,11 @@ export default function PaymentSettings({ org, onSave, notify }) {
           ))}
         </div>
 
-        {/* Paystack fields */}
-        {provider === "paystack" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, marginBottom: 16 }}>
-            <Inp label="Paystack Public Key" value={paystackKey} onChange={setPaystackKey} placeholder="pk_live_xxxxxxxxxxxxxxxxxxxx" />
-            <p style={{ fontSize: 11, color: T.muted }}>
-              Get your key from{" "}
-              <a href="https://dashboard.paystack.com/#/settings/developer" target="_blank" rel="noreferrer" style={{ color: T.accentL }}>
-                Paystack Dashboard → Settings → API Keys & Webhooks
-              </a>
-            </p>
-          </div>
-        )}
-
-        {/* Flutterwave fields */}
-        {provider === "flutterwave" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: 16, borderRadius: 12, background: T.surface, border: `1px solid ${T.border}`, marginBottom: 16 }}>
-            <Inp label="Flutterwave Public Key" value={flwKey} onChange={setFlwKey} placeholder="FLWPUBK-xxxxxxxxxxxxxxxxxxxx-X" />
-            <p style={{ fontSize: 11, color: T.muted }}>
-              Get your key from{" "}
-              <a href="https://dashboard.flutterwave.com/dashboard/settings/apis" target="_blank" rel="noreferrer" style={{ color: T.accentL }}>
-                Flutterwave Dashboard → Settings → APIs
-              </a>
+        {/* Card payments info (no config needed — platform-wide) */}
+        {provider === "card" && (
+          <div style={{ padding: 16, borderRadius: 12, background: T.success + "12", border: `1px solid ${T.success}30`, marginBottom: 16 }}>
+            <p style={{ fontSize: 12, color: T.text, lineHeight: 1.7 }}>
+              ✅ Nothing to set up — card payments are handled by Evenova directly. Each sale is credited to your wallet as soon as payment is confirmed.
             </p>
           </div>
         )}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Activity,BarChart3,Briefcase,Building,Calendar,CreditCard,DollarSign,LayoutDashboard,LogOut,Menu,MessageCircle,Scan,Sparkles,List,Users,Zap } from "lucide-react";
+import { Activity,BarChart3,Briefcase,Building,Calendar,CreditCard,DollarSign,LayoutDashboard,LogOut,Menu,MessageCircle,Scan,Sparkles,List,Users,Wallet,Zap } from "lucide-react";
 import { GA, T } from "../styles/theme.js";
 import { useMedia } from "../hooks/useMedia.js";
 import { ThemeToggle } from "./ThemeToggle.jsx";
@@ -10,7 +10,7 @@ export default function AppNav({ user, onNav, onLogout }) {
 
   const orgLinks = [
     ["dashboard","Dashboard",LayoutDashboard],["events","Events",Calendar],
-    ["revenue","Revenue",BarChart3],["payment-settings","Payments",CreditCard],
+    ["revenue","Revenue",BarChart3],["wallet","Wallet",Wallet],["payment-settings","Payments",CreditCard],
     ["team","Team",Users],["scanner","Scanner",Scan],["live","Live",Activity],
     ["scan-log","Scan Log",List],
   ];

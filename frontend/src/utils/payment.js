@@ -1,7 +1,16 @@
 /* ─────────────────────────────────────────────────────────────
    5c. PAYSTACK / FLUTTERWAVE PAYMENT HELPERS
+
+   All checkout payments use EVENOVA'S OWN platform keys — money from every
+   ticket sale lands in Evenova's Paystack/Flutterwave account, not the
+   organizer's. Organizers are credited in their Evenova wallet instead
+   (see /api/payments/verify crediting the wallet server-side) and withdraw
+   from there. This is why these are read from platform env vars, not from
+   event.paymentConfig / an organizer's own settings.
 ───────────────────────────────────────────────────────────── */
 
+const PLATFORM_PAYSTACK_KEY = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || "";
+const PLATFORM_FLW_KEY = import.meta.env.VITE_FLW_PUBLIC_KEY || "";
 
 export function loadScript(src) {
   return new Promise((res, rej) => {
@@ -14,10 +23,9 @@ export function loadScript(src) {
 
 export async function openPaystackCheckout({ email, name, amount, eventTitle, onSuccess, onClose }) {
   await loadScript("https://js.paystack.co/v2/inline.js");
-  const key = window._evPayCfg.paystackKey;
-  if (!key) { throw new Error("Paystack public key not configured. Go to Event Settings → Payment."); }
+  if (!PLATFORM_PAYSTACK_KEY) { throw new Error("Paystack isn't configured on this deployment yet."); }
   const handler = window.PaystackPop.setup({
-    key,
+    key: PLATFORM_PAYSTACK_KEY,
     email,
     amount: amount * 100, // kobo
     currency: "NGN",
@@ -30,10 +38,9 @@ export async function openPaystackCheckout({ email, name, amount, eventTitle, on
 
 export async function openFlutterwaveCheckout({ email, name, phone, amount, eventTitle, onSuccess, onClose }) {
   await loadScript("https://checkout.flutterwave.com/v3.js");
-  const key = window._evPayCfg.flwKey;
-  if (!key) { throw new Error("Flutterwave public key not configured. Go to Event Settings → Payment."); }
+  if (!PLATFORM_FLW_KEY) { throw new Error("Flutterwave isn't configured on this deployment yet."); }
   window.FlutterwaveCheckout({
-    public_key: key,
+    public_key: PLATFORM_FLW_KEY,
     tx_ref: "EVT_" + Date.now(),
     amount,
     currency: "NGN",

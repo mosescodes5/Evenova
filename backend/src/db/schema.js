@@ -12,6 +12,9 @@ export const orgStatusEnum = pgEnum("org_status", ["pending", "approved", "rejec
 export const accountTypeEnum = pgEnum("account_type", ["individual", "organisation"]);
 export const eventStatusEnum = pgEnum("event_status", ["draft", "upcoming", "live", "ended", "cancelled"]);
 export const ticketStatusEnum = pgEnum("ticket_status", ["pending_payment", "unused", "used", "refunded", "void"]);
+export const walletTxnTypeEnum = pgEnum("wallet_txn_type", ["credit", "debit"]);
+export const withdrawalMethodEnum = pgEnum("withdrawal_method", ["bank", "crypto"]);
+export const withdrawalStatusEnum = pgEnum("withdrawal_status", ["pending", "approved", "paid", "rejected"]);
 
 // ── Organizers (the company/brand running events) ─────────────
 export const organizers = pgTable("organizers", {
@@ -126,4 +129,63 @@ export const scanLogs = pgTable("scan_logs", {
   scannedAt: timestamp("scanned_at").defaultNow().notNull(),
 }, (t) => ({
   eventIdx: index("scan_logs_event_idx").on(t.eventId),
+}));
+
+// ── Withdrawal requests ─────────────────────────────────────
+export const withdrawals = pgTable("withdrawals", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orgId: uuid("org_id").references(() => organizers.id, { onDelete: "cascade" }).notNull(),
+  requestedBy: uuid("requested_by").references(() => users.id),
+  amountKobo: integer("amount_kobo").notNull(),
+  method: withdrawalMethodEnum("method").notNull(),
+  status: withdrawalStatusEnum("status").default("pending").notNull(),
+
+  // Bank payout details (method = "bank")
+  bankCode: varchar("bank_code", { length: 20 }),
+  bankName: varchar("bank_name", { length: 120 }),
+  accountNumber: varchar("account_number", { length: 20 }),
+  accountName: varchar("account_name", { length: 200 }),
+
+  // Crypto payout details (method = "crypto") — fulfilled manually by an
+  // admin; see note in routes/wallet.js on why this isn't automated.
+  cryptoAsset: varchar("crypto_asset", { length: 20 }),   // e.g. USDT, BTC
+  cryptoNetwork: varchar("crypto_network", { length: 30 }), // e.g. TRC20, ERC20, BEP20
+  cryptoAddress: varchar("crypto_address", { length: 200 }),
+
+  // Fulfillment
+  paystackTransferCode: varchar("paystack_transfer_code", { length: 100 }),
+  providerReference: varchar("provider_reference", { length: 200 }), // tx hash for crypto, transfer code for bank
+  adminNote: text("admin_note"),
+  processedBy: uuid("processed_by").references(() => users.id),
+  processedAt: timestamp("processed_at"),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  orgIdx: index("withdrawals_org_idx").on(t.orgId),
+  statusIdx: index("withdrawals_status_idx").on(t.status),
+}));
+
+// ── Wallet ledger (every credit/debit affecting an organizer's balance) ─
+// Balance = SUM(credit amounts) - SUM(debit amounts) for a given orgId.
+// Credits are written by the payment-verification step (server computes the
+// amount itself — never trusts a client-supplied figure). Debits are written
+// when a withdrawal is approved/paid.
+export const walletTransactions = pgTable("wallet_transactions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orgId: uuid("org_id").references(() => organizers.id, { onDelete: "cascade" }).notNull(),
+  type: walletTxnTypeEnum("type").notNull(),
+  amountKobo: integer("amount_kobo").notNull(), // always positive; `type` gives direction
+  // Loose references — real event/ticket data currently lives outside this
+  // normalized schema (legacy Supabase-direct events table), so these are
+  // descriptive only, not foreign keys.
+  eventId: varchar("event_id", { length: 100 }),
+  eventTitle: varchar("event_title", { length: 300 }),
+  ticketId: varchar("ticket_id", { length: 100 }),
+  paymentRef: varchar("payment_ref", { length: 200 }),
+  withdrawalId: uuid("withdrawal_id").references(() => withdrawals.id, { onDelete: "set null" }),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  orgIdx: index("wallet_txn_org_idx").on(t.orgId),
+  refIdx: index("wallet_txn_ref_idx").on(t.paymentRef),
 }));

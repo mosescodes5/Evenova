@@ -39,7 +39,26 @@ export const api = {
   approveOrganizerApplication: (id, token) => request(`/admin/organizers/${id}/approve`, { method: "POST", token }),
   rejectOrganizerApplication:  (id, token) => request(`/admin/organizers/${id}/reject`,  { method: "POST", token }),
 
-  // Payments — server-side re-verification before issuing a paid ticket
-  verifyPayment: (reference, provider, expectedAmountKobo) =>
-    request("/payments/verify", { method: "POST", body: { reference, provider, expectedAmountKobo } }),
+  // Payments — server-side re-verification before issuing a paid ticket,
+  // and (if orgId/ticketPriceNaira are given) crediting the org's wallet.
+  verifyPayment: (reference, provider, expectedAmountKobo, extra = {}) =>
+    request("/payments/verify", { method: "POST", body: { reference, provider, expectedAmountKobo, ...extra } }),
+
+  // Wallet — organizer-facing balance, history, and withdrawals
+  getWalletBalance: (token) => request("/wallet/balance", { token }),
+  getWalletTransactions: (token) => request("/wallet/transactions", { token }),
+  listBanks: (token) => request("/wallet/banks", { token }),
+  resolveBankAccount: (accountNumber, bankCode, token) =>
+    request("/wallet/resolve-account", { method: "POST", body: { accountNumber, bankCode }, token }),
+  listMyWithdrawals: (token) => request("/wallet/withdrawals", { token }),
+  requestWithdrawal: (payload, token) => request("/wallet/withdrawals", { method: "POST", body: payload, token }),
+
+  // Admin — withdrawal review/payout
+  listAllWithdrawals: (status, token) =>
+    request(`/admin/withdrawals${status ? `?status=${status}` : ""}`, { token }),
+  approveWithdrawal: (id, token) => request(`/admin/withdrawals/${id}/approve`, { method: "POST", token }),
+  markWithdrawalPaid: (id, providerReference, adminNote, token) =>
+    request(`/admin/withdrawals/${id}/mark-paid`, { method: "POST", body: { providerReference, adminNote }, token }),
+  rejectWithdrawal: (id, adminNote, token) =>
+    request(`/admin/withdrawals/${id}/reject`, { method: "POST", body: { adminNote }, token }),
 };

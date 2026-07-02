@@ -19,6 +19,8 @@ import HowItWorks from './pages/HowItWorks.jsx';
 import About from "./pages/About.jsx";
 import Contact from "./pages/Contact.jsx";
 import Pricing from "./pages/Pricing.jsx";
+import Wallet from "./pages/organizer/Wallet.jsx";
+import AdminWithdrawals from "./pages/admin/AdminWithdrawals.jsx";
 import Explore from "./pages/Explore.jsx";
 import PublicEventPage from "./pages/PublicEventPage.jsx";
 import Register from "./pages/Register.jsx";
@@ -472,6 +474,7 @@ export default function App() {
     // ── Admin ─────────────────────────────────────────────
     if (user.role === "admin") {
       if (view === "admin-orgs")     return <AdminOrgs organizers={orgApplications} loading={orgAppsLoading} onApprove={approveOrg} onReject={rejectOrg} />;
+      if (view === "admin-payouts")  return <AdminWithdrawals notify={notify} />;
       if (view === "admin-revenue")  return <AdminRevenue organizers={organizers} events={events} />;
       if (view === "admin-scan-log") return <AdminScanLogView scanLogs={scanLogs} events={events} organizers={organizers} />;
       if (view === "email-blast")     return <EmailBlast org={null} events={events} user={user} notify={notify} />;
@@ -555,6 +558,7 @@ export default function App() {
       "sponsor-blast": <SponsorBlast org={activeOrg} user={user} notify={notify} />,
       "account-settings": <AccountSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
       "payment-settings": <PaymentSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
+      "wallet": <Wallet notify={notify}/>,
     };
     const screen = screens[view] || screens.dashboard;
     if (user.status === "pending") {
