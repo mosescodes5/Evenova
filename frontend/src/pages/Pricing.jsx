@@ -6,7 +6,7 @@ import {
   Briefcase, GraduationCap,
 } from "lucide-react";
 import { Reveal, StaggerReveal, StaggerItem, PageMotion, HoverCard } from "../components/Motion.jsx";
-import { T, SERVICE_CHARGE_PCT, calcServiceCharge, calcTotalWithCharge } from "../styles/theme.js";
+import { T, SERVICE_CHARGE_PCT, calcServiceCharge, calcTotalWithCharge, calcOrganizerEarning } from "../styles/theme.js";
 import { Btn, Inp } from "../components/ui/index.jsx";
 import { useMedia } from "../hooks/useMedia.js";
 
@@ -30,9 +30,11 @@ const USE_CASES = [
 
 function FeeCalculator({ mobile }) {
   const [price, setPrice] = useState("10000");
+  const [feeMode, setFeeMode] = useState("pass_through");
   const priceNum = Number(price) || 0;
   const fee = useMemo(() => calcServiceCharge(priceNum), [priceNum]);
-  const total = useMemo(() => calcTotalWithCharge(priceNum), [priceNum]);
+  const total = useMemo(() => calcTotalWithCharge(priceNum, feeMode), [priceNum, feeMode]);
+  const earning = useMemo(() => calcOrganizerEarning(priceNum, feeMode), [priceNum, feeMode]);
 
   return (
     <div style={{
@@ -49,6 +51,18 @@ function FeeCalculator({ mobile }) {
         </div>
         <Inp label="Ticket price (₦)" type="number" value={price} onChange={setPrice} placeholder="10000" />
 
+        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+          {[["pass_through", "Attendee pays fee"], ["absorb", "I absorb the fee"]].map(([mode, label]) => (
+            <button key={mode} onClick={() => setFeeMode(mode)}
+              style={{ flex: 1, padding: "9px 10px", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                border: `1.5px solid ${feeMode === mode ? T.accent : T.border}`,
+                background: feeMode === mode ? T.accent + "20" : "transparent",
+                color: feeMode === mode ? T.accentL : T.muted }}>
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div style={{ position: "relative", height: 0, margin: "22px 0" }}>
           <div style={{ position: "absolute", top: -11, left: -32, width: 22, height: 22, borderRadius: "50%", background: T.bg }} />
           <div style={{ position: "absolute", top: -11, right: -32, width: 22, height: 22, borderRadius: "50%", background: T.bg }} />
@@ -62,11 +76,13 @@ function FeeCalculator({ mobile }) {
           </div>
           <div style={{ flex: 1, background: T.accent + "15", borderRadius: 14, padding: "16px 18px", border: `1px solid ${T.accent}40` }}>
             <p style={{ fontSize: 11, color: T.accentL, textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 6 }}>You receive</p>
-            <p className="outfit" style={{ fontSize: 22, fontWeight: 800, color: T.accentL }}>₦{priceNum.toLocaleString()}</p>
+            <p className="outfit" style={{ fontSize: 22, fontWeight: 800, color: T.accentL }}>₦{earning.toLocaleString()}</p>
           </div>
         </div>
         <p style={{ fontSize: 12, color: T.muted, marginTop: 14, textAlign: "center" }}>
-          A {SERVICE_CHARGE_PCT}% service fee (₦{fee.toLocaleString()}) is added on top for the attendee — you always keep 100% of your ticket price.
+          {feeMode === "absorb"
+            ? <>You're absorbing the {SERVICE_CHARGE_PCT}% fee (₦{fee.toLocaleString()}) — attendees pay exactly the ticket price.</>
+            : <>A {SERVICE_CHARGE_PCT}% service fee (₦{fee.toLocaleString()}) is added on top for the attendee — you keep 100% of your ticket price.</>}
         </p>
       </div>
     </div>
@@ -110,7 +126,7 @@ export default function Pricing({ onNav }) {
               For paid events, we charge {SERVICE_CHARGE_PCT}% of the ticket price
             </h2>
             <p style={{ fontSize: 15, color: T.muted, lineHeight: 1.8, marginBottom: 12 }}>
-              That's it — no flat fees, no hidden charges, no separate payment-processing line item. The fee is added on top of your ticket price at checkout, so <strong style={{ color: T.text }}>you always receive the full amount you set.</strong>
+              You choose who pays it. Pass it on to attendees at checkout and keep 100% of your ticket price — or absorb it yourself and let attendees pay exactly the price you set. Switch it per event, any time.
             </p>
             <p style={{ fontSize: 15, color: T.muted, lineHeight: 1.8 }}>
               Free events never pay a fee, at any point, for any number of attendees.

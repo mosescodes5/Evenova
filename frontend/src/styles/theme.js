@@ -221,23 +221,33 @@ export const EVENT_BANNERS = {
 /* ─────────────────────────────────────────────────────────────
    SERVICE CHARGE UTILS
    Platform collects 5% on every paid ticket.
-   Organizer balance = ticket price (95%).
+   Organizer balance = ticket price (95%) — unless the organizer opts to
+   absorb the fee themselves, in which case the attendee pays exactly the
+   listed ticket price and the fee is deducted from what the organizer
+   receives instead. Controlled per-event via `event.feeMode`:
+     "pass_through" (default) — fee added on top, attendee pays more.
+     "absorb"                 — fee deducted from the ticket price.
 ───────────────────────────────────────────────────────────── */
 export const SERVICE_CHARGE_PCT = 5;
+export const FEE_MODE_PASS_THROUGH = "pass_through";
+export const FEE_MODE_ABSORB = "absorb";
 
-/** Returns the platform fee amount in NGN */
+/** Returns the platform fee amount in NGN (same regardless of who pays it) */
 export function calcServiceCharge(ticketPrice) {
   if (!ticketPrice || ticketPrice <= 0) return 0;
   return Math.ceil(ticketPrice * SERVICE_CHARGE_PCT / 100);
 }
 
-/** Returns the total the attendee pays */
-export function calcTotalWithCharge(ticketPrice) {
+/** Returns the total the attendee pays at checkout */
+export function calcTotalWithCharge(ticketPrice, feeMode = FEE_MODE_PASS_THROUGH) {
   if (!ticketPrice || ticketPrice <= 0) return 0;
+  if (feeMode === FEE_MODE_ABSORB) return ticketPrice; // fee comes out of the organizer's cut instead
   return ticketPrice + calcServiceCharge(ticketPrice);
 }
 
-/** Returns the amount the organizer earns (after platform fee) */
-export function calcOrganizerEarning(ticketPrice) {
-  return ticketPrice - 0; // organizer gets full ticket price; platform takes fee from attendee on top
+/** Returns the amount the organizer actually receives after the platform fee */
+export function calcOrganizerEarning(ticketPrice, feeMode = FEE_MODE_PASS_THROUGH) {
+  if (!ticketPrice || ticketPrice <= 0) return 0;
+  if (feeMode === FEE_MODE_ABSORB) return ticketPrice - calcServiceCharge(ticketPrice);
+  return ticketPrice; // attendee covered the fee on top, organizer keeps the full price
 }

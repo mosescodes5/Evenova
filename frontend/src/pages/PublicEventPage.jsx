@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Calendar, CheckCircle, ChevronLeft, Info, Mail, MapPin, Upload } from "lucide-react";
-import { EVENT_BANNERS, T, calcServiceCharge, calcTotalWithCharge } from "../styles/theme.js";
+import { EVENT_BANNERS, T, calcServiceCharge, calcTotalWithCharge, calcOrganizerEarning } from "../styles/theme.js";
 import { Bdg, Btn, Card, Inp, QRDisplay } from "../components/ui/index.jsx";
 import { useMedia } from "../hooks/useMedia.js";
 import { genId, encodeTicket } from "../utils/crypto.js";
@@ -17,9 +17,9 @@ function CustomField({ field, value, onChange }) {
   return <div>{label}<input type={field.type||"text"} value={value||""} onChange={e=>onChange(e.target.value)} placeholder={field.placeholder} style={base}/></div>;
 }
 
-function TicketCard({ tid, ticket: t, selected, onSelect }) {
+function TicketCard({ tid, ticket: t, selected, onSelect, feeMode }) {
   const fee = calcServiceCharge(t.price);
-  const total = calcTotalWithCharge(t.price);
+  const total = calcTotalWithCharge(t.price, feeMode);
   return (
     <div onClick={()=>onSelect(tid)} style={{ borderRadius:14,border:`2px solid ${selected?t.color:"var(--ev-border)"}`,background:selected?t.color+"12":"var(--ev-card)",cursor:"pointer",transition:"all .2s",overflow:"hidden" }}>
       {t.ticketImage && <div style={{ height:72,overflow:"hidden",position:"relative" }}><img src={t.ticketImage} alt="" style={{ width:"100%",height:"100%",objectFit:"cover" }}/><div style={{ position:"absolute",inset:0,background:`linear-gradient(to bottom,transparent,${selected?t.color+"40":"rgba(8,8,15,.6)"})` }}/></div>}
@@ -28,7 +28,7 @@ function TicketCard({ tid, ticket: t, selected, onSelect }) {
           <span style={{ fontWeight:700,color:selected?t.color:T.text,fontSize:14 }}>{t.name}</span>
           <div style={{ textAlign:"right" }}>
             <span style={{ fontWeight:800,color:"var(--ev-gold)",fontSize:15 }}>{t.price===0?"Free":`₦${total.toLocaleString()}`}</span>
-            {t.price>0&&<p style={{ fontSize:10,color:"var(--ev-muted)",marginTop:1 }}>incl. ₦{fee.toLocaleString()} fee</p>}
+            {t.price>0&&feeMode!=="absorb"&&<p style={{ fontSize:10,color:"var(--ev-muted)",marginTop:1 }}>incl. ₦{fee.toLocaleString()} fee</p>}
           </div>
         </div>
         {t.perks?.map((p,i)=><p key={i} style={{ fontSize:12,color:"var(--ev-muted)" }}><CheckCircle size={10} style={{ display:"inline",marginRight:4,color:"var(--ev-success)" }}/>{p}</p>)}
@@ -38,22 +38,24 @@ function TicketCard({ tid, ticket: t, selected, onSelect }) {
   );
 }
 
-function PriceBreakdown({ price }) {
+function PriceBreakdown({ price, feeMode }) {
   if (!price||price===0) return null;
   const fee = calcServiceCharge(price);
-  const total = calcTotalWithCharge(price);
+  const total = calcTotalWithCharge(price, feeMode);
   return (
     <div style={{ padding:"12px 14px",borderRadius:10,background:"var(--ev-surface)",border:"1px solid var(--ev-border)",marginBottom:12 }}>
       <div style={{ display:"flex",justifyContent:"space-between",marginBottom:6,fontSize:13 }}>
         <span style={{ color:"var(--ev-muted)" }}>Ticket price</span>
         <span style={{ color:T.text,fontWeight:600 }}>₦{price.toLocaleString()}</span>
       </div>
-      <div style={{ display:"flex",justifyContent:"space-between",marginBottom:8,fontSize:13,alignItems:"center" }}>
-        <span style={{ display:"flex",alignItems:"center",gap:5,color:"var(--ev-muted)" }}>
-          Platform fee (5%) <Info size={11} title="Keeps Evenova running"/>
-        </span>
-        <span style={{ color:"var(--ev-muted)" }}>₦{fee.toLocaleString()}</span>
-      </div>
+      {feeMode!=="absorb" && (
+        <div style={{ display:"flex",justifyContent:"space-between",marginBottom:8,fontSize:13,alignItems:"center" }}>
+          <span style={{ display:"flex",alignItems:"center",gap:5,color:"var(--ev-muted)" }}>
+            Platform fee (5%) <Info size={11} title="Keeps Evenova running"/>
+          </span>
+          <span style={{ color:"var(--ev-muted)" }}>₦{fee.toLocaleString()}</span>
+        </div>
+      )}
       <div style={{ height:1,background:"var(--ev-border)",marginBottom:8 }}/>
       <div style={{ display:"flex",justifyContent:"space-between",fontSize:15 }}>
         <span style={{ fontWeight:700,color:T.text }}>Total</span>
@@ -84,7 +86,7 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
       // runs entirely in the browser and can be forged. Re-check the
       // reference against the provider's API server-side before issuing
       // anything.
-      const expectedAmountKobo = Math.round(calcTotalWithCharge(selType?.price||0) * 100);
+      const expectedAmountKobo = Math.round(calcTotalWithCharge(selType?.price||0, event.feeMode) * 100);
       let verification;
       try {
         verification = await api.verifyPayment(payRef, provider, expectedAmountKobo);
@@ -110,8 +112,10 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
       customData:formData,registeredAt:new Date().toISOString(),
       paymentRef:payRef||null,paymentStatus:payStatus,receiptUrl:receiptDataUrl||null,
       ticketPrice:selType?.price||0,
+      feeMode:event.feeMode||"pass_through",
       platformFee:calcServiceCharge(selType?.price||0),
-      totalPaid:calcTotalWithCharge(selType?.price||0),
+      totalPaid:calcTotalWithCharge(selType?.price||0, event.feeMode),
+      organizerEarning:calcOrganizerEarning(selType?.price||0, event.feeMode),
     };
     const reg = { id:genId("REG"),tId,uId,evId:event.id,typeId:selTypeId,data:formData,holderName,holderEmail,code:ticket.code };
     onRegister(event.id,reg,ticket);
@@ -131,7 +135,7 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
     const holderEmail=formData[event.regFields[1]?.id]||"";
     const holderName=formData[event.regFields[0]?.id]||"Attendee";
     const holderPhone=formData[event.regFields[2]?.id]||"";
-    const chargeAmount = calcTotalWithCharge(selType.price);
+    const chargeAmount = calcTotalWithCharge(selType.price, event.feeMode);
     if (payProvider==="paystack") {
       setSubmitting(false); setPayStep("paying");
       try { await openPaystackCheckout({ email:holderEmail,name:holderName,amount:chargeAmount,eventTitle:event.title,onSuccess:async(ref)=>{setSubmitting(true);await issueTicket(ref,"paid","paystack")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
@@ -238,13 +242,13 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
                 )}
                 {payStep==="bank-receipt"&&(()=>{
                   const cfg=getPayCfg();
-                  const total=calcTotalWithCharge(selType?.price||0);
+                  const total=calcTotalWithCharge(selType?.price||0, event.feeMode);
                   return (
                     <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
                       <div style={{ padding:16,borderRadius:14,background:"var(--ev-gold)12",border:"1px solid var(--ev-gold)40" }}>
                         <p style={{ fontSize:13,fontWeight:700,color:"var(--ev-gold)",marginBottom:10 }}>💳 Transfer to this account:</p>
                         <div style={{ display:"grid",gap:8 }}>
-                          {[["Bank",cfg.bankName],["Account No.",cfg.bankAccount],["Account Name",cfg.bankHolder],["Amount (incl. 5% fee)",`₦${total.toLocaleString()}`]].map(([k,v])=>(
+                          {[["Bank",cfg.bankName],["Account No.",cfg.bankAccount],["Account Name",cfg.bankHolder],[event.feeMode==="absorb"?"Amount":"Amount (incl. 5% fee)",`₦${total.toLocaleString()}`]].map(([k,v])=>(
                             <div key={k} style={{ display:"flex",justifyContent:"space-between",fontSize:13 }}>
                               <span style={{ color:"var(--ev-muted)" }}>{k}</span>
                               <span style={{ color:T.text,fontWeight:700 }}>{v}</span>
@@ -279,11 +283,11 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
                 })()}
                 {payStep!=="paying"&&payStep!=="bank-receipt"&&(()=>{
                   const cfg=getPayCfg();
-                  const total=calcTotalWithCharge(selType?.price||0);
+                  const total=calcTotalWithCharge(selType?.price||0, event.feeMode);
                   const btnLabel=submitting?"Processing…":isFree?"Register Free":cfg.provider==="paystack"?`Pay ₦${total.toLocaleString()} with Paystack`:cfg.provider==="flutterwave"?`Pay ₦${total.toLocaleString()} with Flutterwave`:cfg.provider==="bank"?`Register · Pay ₦${total.toLocaleString()} via Transfer`:`Register · ₦${total.toLocaleString()}`;
                   return (
                     <div>
-                      {!isFree&&<PriceBreakdown price={selType?.price||0}/>}
+                      {!isFree&&<PriceBreakdown price={selType?.price||0} feeMode={event.feeMode}/>}
                       <Btn full sz="lg" onClick={submit} disabled={submitting} style={{ marginTop:4 }}>{btnLabel}</Btn>
                     </div>
                   );
@@ -295,7 +299,7 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
             <Card style={{ padding:22,marginBottom:14 }}>
               <h3 style={{ fontSize:14,fontWeight:700,color:T.text,marginBottom:14 }}>Choose Ticket Type</h3>
               <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-                {Object.entries(event.ticketTypes).map(([tid,t])=><TicketCard key={tid} tid={tid} ticket={t} selected={selTypeId===tid} onSelect={setSelTypeId}/>)}
+                {Object.entries(event.ticketTypes).map(([tid,t])=><TicketCard key={tid} tid={tid} ticket={t} selected={selTypeId===tid} onSelect={setSelTypeId} feeMode={event.feeMode}/>)}
               </div>
             </Card>
             <Card style={{ padding:18 }}>

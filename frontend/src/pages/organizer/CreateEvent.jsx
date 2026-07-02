@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CheckCircle, CheckSquare, ChevronLeft, ChevronRight, Edit, Filter, Image, Music, Phone, Plus, Search, Sparkles, Ticket, Trash2, Upload } from "lucide-react";
-import { GA, T } from "../../styles/theme.js";
+import { GA, T, SERVICE_CHARGE_PCT, calcServiceCharge } from "../../styles/theme.js";
 import { Btn, Card, Inp } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
 import { genId, encodeTicket, verifyQR } from "../../utils/crypto.js";
@@ -9,7 +9,7 @@ import { DEF_FIELDS } from "../../data/seedData.js";
 export default function CreateEvent({ org, onSubmit, onBack }) {
   const { mobile } = useMedia();
   const [step, setStep] = useState(1);
-  const [det, setDet] = useState({ title:"", desc:"", date:"", time:"18:00", endTime:"22:00", venue:"", city:"Lagos", category:"Music", banner:"music", coverImage:"" });
+  const [det, setDet] = useState({ title:"", desc:"", date:"", time:"18:00", endTime:"22:00", venue:"", city:"Lagos", category:"Music", banner:"music", coverImage:"", feeMode:"pass_through" });
   const [gates, setGates] = useState([
     { id:genId("GT"), name:"Main Entrance", color:"#7c3aed" },
     { id:genId("GT"), name:"VIP Gate",      color:"#f59e0b" },
@@ -151,6 +151,32 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
               <p style={{fontSize:13,color:T.muted,marginTop:4}}>3-tier pricing is pre-set: Early Bird / Regular / VIP. Edit as needed.</p>
             </div>
             <Btn sz="sm" onClick={addType} icon={<Plus size={13}/>}>Add Tier</Btn>
+          </div>
+          <div style={{marginBottom:22,padding:16,borderRadius:14,border:`1px solid #33415560`,background:"#7c3aed08"}}>
+            <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:10}}>Who pays the {SERVICE_CHARGE_PCT}% service fee?</label>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              {[
+                ["pass_through","Attendee pays it","Added on top at checkout. You receive the full ticket price."],
+                ["absorb","I'll absorb it","Attendee pays exactly the ticket price. The fee comes out of your payout."],
+              ].map(([mode,label,desc])=>(
+                <button key={mode} onClick={()=>setD("feeMode")(mode)}
+                  style={{flex:"1 1 220px",textAlign:"left",padding:"12px 14px",borderRadius:12,cursor:"pointer",
+                    border:`1.5px solid ${det.feeMode===mode?"#7c3aed":"#33415560"}`,
+                    background:det.feeMode===mode?"#7c3aed18":"transparent"}}>
+                  <p style={{fontSize:13,fontWeight:700,color:det.feeMode===mode?"#c4b5fd":T.text,marginBottom:3}}>{label}</p>
+                  <p style={{fontSize:11.5,color:"#94a3b8",lineHeight:1.5}}>{desc}</p>
+                </button>
+              ))}
+            </div>
+            {Number(types[0]?.price)>0 && (()=>{ const p=Number(types[0].price); const fee=calcServiceCharge(p);
+              return (
+                <p style={{fontSize:11.5,color:"#64748b",marginTop:10}}>
+                  Example on a ₦{p.toLocaleString()} ticket: {det.feeMode==="absorb"
+                    ? <>attendee pays <strong style={{color:"#94a3b8"}}>₦{p.toLocaleString()}</strong>, you receive <strong style={{color:"#94a3b8"}}>₦{(p-fee).toLocaleString()}</strong></>
+                    : <>attendee pays <strong style={{color:"#94a3b8"}}>₦{(p+fee).toLocaleString()}</strong>, you receive <strong style={{color:"#94a3b8"}}>₦{p.toLocaleString()}</strong></>}
+                </p>
+              );
+            })()}
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:20}}>
             {types.map(t=>(
