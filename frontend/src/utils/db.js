@@ -6,31 +6,29 @@ import { supabase } from "./supabase.js";
 const toOrg = (r) => ({
   id:            r.id,
   name:          r.name,
+  accountType:   r.account_type,
   contactName:   r.contact_name,
-  email:         r.email,
   phone:         r.phone,
+  idType:        r.id_type,
+  idNumber:      r.id_number,
+  expectedGuests: r.expected_guests,
   status:        r.status,
-  teamSize:      r.team_size,
-  password:      r.password,
-  verifyCode:    r.verify_code,
-  verifyExpiry:  r.verify_expiry,
-  staff:         r.staff         ?? [],
-  paymentConfig: r.payment_config ?? null,
+  staff:         r.staff          ?? [],
+  paymentConfig: r.payment_config ?? {},
 });
 
 const fromOrg = (o) => ({
   id:             o.id,
   name:           o.name,
+  account_type:   o.accountType,
   contact_name:   o.contactName,
-  email:          o.email,
   phone:          o.phone,
+  id_type:        o.idType,
+  id_number:      o.idNumber,
+  expected_guests: o.expectedGuests,
   status:         o.status,
-  team_size:      o.teamSize,
-  password:       o.password,
-  verify_code:    o.verifyCode    ?? null,
-  verify_expiry:  o.verifyExpiry  ?? null,
-  staff:          o.staff         ?? [],
-  payment_config: o.paymentConfig ?? null,
+  staff:          o.staff          ?? [],
+  payment_config: o.paymentConfig  ?? {},
 });
 
 const toEvent = (r) => ({
@@ -166,7 +164,7 @@ export async function deleteOrganizer(id) {
 
 /* ── Events ──────────────────────────────────────────────── */
 export async function loadEvents() {
-  const { data, error } = await supabase.from("events").select("*").order("created_at");
+  const { data, error } = await supabase.from("events").select("*");
   if (error) throw error;
   return (data ?? []).map(toEvent);
 }
@@ -178,7 +176,7 @@ export async function saveEvent(event) {
 
 /* ── Scan Logs ───────────────────────────────────────────── */
 export async function loadScanLogs() {
-  const { data, error } = await supabase.from("scan_logs").select("*").order("ts", { ascending: false });
+  const { data, error } = await supabase.from("scan_logs").select("*");
   if (error) throw error;
   return (data ?? []).map(toLog);
 }
@@ -190,7 +188,7 @@ export async function insertScanLog(log) {
 
 /* ── Email Blasts ────────────────────────────────────────── */
 export async function loadBlasts(orgId) {
-  let q = supabase.from("email_blasts").select("*").order("ts", { ascending: false });
+  let q = supabase.from("email_blasts").select("*");
   if (orgId) q = q.eq("org_id", orgId);
   const { data, error } = await q;
   if (error) throw error;

@@ -61,4 +61,12 @@ export const api = {
     request(`/admin/withdrawals/${id}/mark-paid`, { method: "POST", body: { providerReference, adminNote }, token }),
   rejectWithdrawal: (id, adminNote, token) =>
     request(`/admin/withdrawals/${id}/reject`, { method: "POST", body: { adminNote }, token }),
+
+  // Bank transfers — Evenova's own account, never an organizer's
+  getPlatformBankDetails: () => request("/payments/bank-details"),
+  listPendingBankTransfers: (token) => request("/admin/bank-transfers", { token }),
+  confirmBankTransfer: (eventId, ticketId, token) =>
+    request("/admin/bank-transfers/confirm", { method: "POST", body: { eventId, ticketId }, token }),
+  rejectBankTransfer: (eventId, ticketId, reason, token) =>
+    request("/admin/bank-transfers/reject", { method: "POST", body: { eventId, ticketId, reason }, token }),
 };

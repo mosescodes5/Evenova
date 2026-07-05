@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar, CheckCircle, ChevronLeft, Info, Mail, MapPin, Upload } from "lucide-react";
 import { EVENT_BANNERS, T, calcServiceCharge, calcTotalWithCharge, calcOrganizerEarning } from "../styles/theme.js";
 import { Bdg, Btn, Card, Inp, QRDisplay } from "../components/ui/index.jsx";
@@ -74,6 +74,13 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
   const [success, setSuccess] = useState(null);
   const [receiptDataUrl, setReceiptDataUrl] = useState(null);
   const [receiptName, setReceiptName] = useState("");
+  const [platformBank, setPlatformBank] = useState(null);
+
+  useEffect(() => {
+    if (payStep === "bank-receipt" && !platformBank) {
+      api.getPlatformBankDetails().then(setPlatformBank).catch(() => {});
+    }
+  }, [payStep, platformBank]);
 
   const selType = event.ticketTypes[selTypeId];
   const isFree = !selType?.price||selType.price===0;
@@ -247,20 +254,22 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
                   </div>
                 )}
                 {payStep==="bank-receipt"&&(()=>{
-                  const cfg=getPayCfg();
                   const total=calcTotalWithCharge(selType?.price||0, event.feeMode);
                   return (
                     <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
                       <div style={{ padding:16,borderRadius:14,background:"var(--ev-gold)12",border:"1px solid var(--ev-gold)40" }}>
                         <p style={{ fontSize:13,fontWeight:700,color:"var(--ev-gold)",marginBottom:10 }}>💳 Transfer to this account:</p>
+                        {!platformBank && <p style={{ fontSize:12,color:"var(--ev-muted)" }}>Loading account details…</p>}
+                        {platformBank && (
                         <div style={{ display:"grid",gap:8 }}>
-                          {[["Bank",cfg.bankName],["Account No.",cfg.bankAccount],["Account Name",cfg.bankHolder],[event.feeMode==="absorb"?"Amount":"Amount (incl. 5% fee)",`₦${total.toLocaleString()}`]].map(([k,v])=>(
+                          {[["Bank",platformBank.bankName],["Account No.",platformBank.accountNumber],["Account Name",platformBank.accountName],[event.feeMode==="absorb"?"Amount":"Amount (incl. 5% fee)",`₦${total.toLocaleString()}`]].map(([k,v])=>(
                             <div key={k} style={{ display:"flex",justifyContent:"space-between",fontSize:13 }}>
                               <span style={{ color:"var(--ev-muted)" }}>{k}</span>
                               <span style={{ color:T.text,fontWeight:700 }}>{v}</span>
                             </div>
                           ))}
                         </div>
+                        )}
                       </div>
                       <div>
                         <label style={{ fontSize:11,fontWeight:700,color:"var(--ev-muted)",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8 }}>Upload Transfer Receipt <span style={{ color:"var(--ev-danger)" }}>*</span></label>

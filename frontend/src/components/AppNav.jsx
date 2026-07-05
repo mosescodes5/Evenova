@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Activity,BarChart3,Briefcase,Building,Calendar,CreditCard,DollarSign,LayoutDashboard,LogOut,Menu,MessageCircle,Scan,Sparkles,List,Users,Wallet,Zap } from "lucide-react";
+import { Activity,BarChart3,Briefcase,Building,Calendar,CreditCard,DollarSign,Landmark,LayoutDashboard,LogOut,Menu,MessageCircle,Scan,Sparkles,List,Users,Wallet,Zap } from "lucide-react";
 import { GA, T } from "../styles/theme.js";
 import { useMedia } from "../hooks/useMedia.js";
 import { ThemeToggle } from "./ThemeToggle.jsx";
@@ -18,7 +18,7 @@ export default function AppNav({ user, onNav, onLogout }) {
   const adminLinks = [
     ["admin","Dashboard",LayoutDashboard],["admin-orgs","Organizers",Building],
     ["admin-events","Events",Calendar],["admin-revenue","Revenue",DollarSign],
-    ["admin-payouts","Payouts",CreditCard],["admin-scan-log","Scan Log",List],
+    ["admin-payouts","Payouts",CreditCard],["admin-bank-transfers","Bank Transfers",Landmark],["admin-scan-log","Scan Log",List],
     ["email-blast","Email Blast",Zap],["whatsapp-blast","WhatsApp",MessageCircle],
     ["sponsor-blast","Sponsors",Briefcase],
   ];

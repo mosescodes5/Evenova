@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
-import { db, schema } from "../db/index.js";
+import { db, schema, pool } from "../db/index.js";
 import { walletService } from "../services/walletService.js";
 import { paystackTransferService } from "../services/paystackTransferService.js";
+import { calcOrganizerEarningNaira } from "../utils/fees.js";
+import { emailService } from "../services/emailService.js";
 
 const { organizers, users, withdrawals } = schema;
 const router = Router();
@@ -178,6 +180,91 @@ router.post("/withdrawals/:id/reject", async (req, res, next) => {
       .set({ status: "rejected", adminNote: adminNote || null, processedBy: req.user.id, processedAt: new Date() })
       .where(eq(withdrawals.id, id));
     res.json({ message: "Withdrawal rejected" });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/admin/bank-transfers ───────────────────────────────
+// Bank-transfer tickets live inside the legacy events.tickets JSONB column
+// (not the normalized `tickets` table — see the note in schema.js on the
+// wallet tables), so this scans that column directly rather than going
+// through Drizzle's query builder, which has no visibility into it.
+router.get("/bank-transfers", async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(`SELECT id, org_id, title, tickets, ticket_types FROM events`);
+    const pending = [];
+    for (const row of rows) {
+      for (const t of row.tickets || []) {
+        if (t.paymentStatus === "pending" && t.paymentRef === "BANK_PENDING") {
+          pending.push({
+            eventId: row.id, eventTitle: row.title, orgId: row.org_id,
+            ticketId: t.id, holderName: t.holderName, holderEmail: t.holderEmail,
+            ticketPrice: t.ticketPrice, totalPaid: t.totalPaid, feeMode: t.feeMode,
+            receiptUrl: t.receiptUrl, registeredAt: t.registeredAt,
+          });
+        }
+      }
+    }
+    pending.sort((a, b) => new Date(b.registeredAt) - new Date(a.registeredAt));
+    res.json(pending);
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/admin/bank-transfers/confirm ──────────────────────
+// Confirms Evenova actually received the transfer: flips the ticket live,
+// credits the organizer's wallet (server computes the amount — never
+// trusts the ticket's own stored figures blindly beyond reading price),
+// and emails the attendee their now-valid ticket.
+router.post("/bank-transfers/confirm", async (req, res, next) => {
+  try {
+    const { eventId, ticketId } = req.body;
+    const { rows } = await pool.query(
+      `SELECT org_id, title, date, time, venue, city, tickets, ticket_types FROM events WHERE id = $1`, [eventId]
+    );
+    if (!rows.length) return res.status(404).json({ error: "Event not found" });
+    const { org_id: orgId, title: eventTitle, date, time, venue, city, tickets, ticket_types: ticketTypes } = rows[0];
+
+    const idx = tickets.findIndex((t) => t.id === ticketId);
+    if (idx === -1) return res.status(404).json({ error: "Ticket not found" });
+    const ticket = tickets[idx];
+    if (ticket.paymentStatus !== "pending") {
+      return res.status(400).json({ error: `Already ${ticket.paymentStatus}` });
+    }
+
+    tickets[idx] = { ...ticket, status: "unused", paymentStatus: "paid" };
+    await pool.query(`UPDATE events SET tickets = $1::jsonb WHERE id = $2`, [JSON.stringify(tickets), eventId]);
+
+    const earningNaira = calcOrganizerEarningNaira(Number(ticket.ticketPrice || 0), ticket.feeMode);
+    if (earningNaira > 0) {
+      await walletService.creditForTicketSale({
+        orgId, amountKobo: Math.round(earningNaira * 100),
+        eventId, eventTitle, ticketId, paymentRef: `bank_${ticketId}`,
+        note: `Bank transfer confirmed — ${eventTitle}`,
+      });
+    }
+
+    if (ticket.holderEmail) {
+      const ticketType = (ticketTypes || {})[ticket.tpId] || null;
+      const event = { title: eventTitle, date, time, venue, city };
+      emailService.sendTicketEmail(tickets[idx], ticket.holderEmail, event, ticketType).catch(console.error);
+    }
+
+    res.json({ message: "Payment confirmed, ticket issued" });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/admin/bank-transfers/reject ───────────────────────
+router.post("/bank-transfers/reject", async (req, res, next) => {
+  try {
+    const { eventId, ticketId, reason } = req.body;
+    const { rows } = await pool.query(`SELECT tickets FROM events WHERE id = $1`, [eventId]);
+    if (!rows.length) return res.status(404).json({ error: "Event not found" });
+    const tickets = rows[0].tickets;
+    const idx = tickets.findIndex((t) => t.id === ticketId);
+    if (idx === -1) return res.status(404).json({ error: "Ticket not found" });
+
+    tickets[idx] = { ...tickets[idx], status: "rejected", paymentStatus: "rejected", rejectReason: reason || null };
+    await pool.query(`UPDATE events SET tickets = $1::jsonb WHERE id = $2`, [JSON.stringify(tickets), eventId]);
+    res.json({ message: "Payment rejected" });
   } catch (err) { next(err); }
 });
 

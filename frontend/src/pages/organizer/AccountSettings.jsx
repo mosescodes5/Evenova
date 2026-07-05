@@ -32,7 +32,7 @@ function Section({ icon: Icon, title, children }) {
   );
 }
 
-export default function AccountSettings({ org, onSave, notify }) {
+export default function AccountSettings({ org, user, onSave, notify }) {
   const { mobile } = useMedia();
 
   // Profile state
@@ -115,7 +115,7 @@ export default function AccountSettings({ org, onSave, notify }) {
       {/* Header */}
       <div style={{ marginBottom:28 }}>
         <h1 className="outfit" style={{ fontSize:26, fontWeight:800, color:T.text, marginBottom:4 }}>Account Settings</h1>
-        <p style={{ color:T.muted, fontSize:14 }}>{org.name} · {org.email}</p>
+        <p style={{ color:T.muted, fontSize:14 }}>{org.name} · {user?.email}</p>
       </div>
 
       {/* Profile section */}
@@ -130,7 +130,7 @@ export default function AccountSettings({ org, onSave, notify }) {
             <label style={{ fontSize:11, fontWeight:700, color:T.muted, textTransform:"uppercase", letterSpacing:".06em" }}>Email Address</label>
             <div style={{ padding:"10px 14px", borderRadius:10, fontSize:14, color:T.muted,
               background:T.surface+"80", border:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <span>{org.email}</span>
+              <span>{user?.email}</span>
               <span style={{ fontSize:11, padding:"2px 8px", borderRadius:100, background:T.info+"22", color:T.info, fontWeight:700 }}>Cannot change</span>
             </div>
           </div>

@@ -69,7 +69,7 @@ function ManualTicketModal({ open, onClose, event, onIssue, notify }) {
   );
 }
 
-export default function EventDetail({ event, onBack, onNav, notify, onAddTicket, onApprovePayment, onRejectPayment }) {
+export default function EventDetail({ event, onBack, onNav, notify, onAddTicket }) {
   const { mobile } = useMedia();
   const [showQR, setShowQR] = useState(null);
   const [showManual, setShowManual] = useState(false);
@@ -214,13 +214,8 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket,
                     </div>
                   )}
 
-                  <div style={{ display:"flex", gap:8 }}>
-                    <Btn sz="sm" v="success" onClick={() => onApprovePayment && onApprovePayment(event.id, t.id)}>
-                      ✓ Approve & Issue Ticket
-                    </Btn>
-                    <Btn sz="sm" v="danger" onClick={() => onRejectPayment && onRejectPayment(event.id, t.id)}>
-                      ✕ Reject
-                    </Btn>
+                  <div style={{ padding:"10px 12px", borderRadius:8, background:T.gold+"12", border:`1px solid ${T.gold+"30"}`, fontSize:12, color:T.gold, display:"flex", alignItems:"center", gap:8 }}>
+                    <Clock size={13}/> Awaiting Evenova's confirmation that the transfer was received — this happens automatically once verified, usually within a few hours.
                   </div>
                 </div>
               );

@@ -3,8 +3,18 @@ import { ticketLimiter } from "../middleware/rateLimiter.js";
 import { paymentsService } from "../services/paymentsService.js";
 import { walletService } from "../services/walletService.js";
 import { calcOrganizerEarningNaira } from "../utils/fees.js";
+import { config } from "../config.js";
 
 const router = Router();
+
+// ── GET /api/payments/bank-details ──────────────────────────────
+// Public — the checkout flow needs this before the attendee is logged in
+// to anything. Always Evenova's own account, never an organizer's, so a
+// compromised or careless organizer can never redirect attendee money to
+// themselves.
+router.get("/bank-details", (req, res) => {
+  res.json(config.payments.platformBank);
+});
 
 // ── POST /api/payments/verify ──────────────────────────────────
 // Re-checks a payment reference directly against Paystack/Flutterwave's

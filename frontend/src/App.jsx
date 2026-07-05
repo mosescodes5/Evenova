@@ -21,6 +21,7 @@ import Contact from "./pages/Contact.jsx";
 import Pricing from "./pages/Pricing.jsx";
 import Wallet from "./pages/organizer/Wallet.jsx";
 import AdminWithdrawals from "./pages/admin/AdminWithdrawals.jsx";
+import AdminBankTransfers from "./pages/admin/AdminBankTransfers.jsx";
 import Explore from "./pages/Explore.jsx";
 import PublicEventPage from "./pages/PublicEventPage.jsx";
 import Register from "./pages/Register.jsx";
@@ -277,7 +278,7 @@ export default function App() {
 
   // ── Account settings update ───────────────────────────────
   const handleAccountUpdate = async (updates) => {
-    const activeOrg = organizers.find(o => o.id === user?.id);
+    const activeOrg = organizers.find(o => o.id === user?.orgId);
     if (!activeOrg) throw new Error("Organization not found");
     const updated = { ...activeOrg, ...updates };
     await db.saveOrganizer(updated);
@@ -285,32 +286,6 @@ export default function App() {
   };
 
   // ── Bank payment approve / reject ─────────────────────────
-  const handleApprovePayment = useCallback(async (eventId, ticketId) => {
-    setEvents(evs => evs.map(ev => {
-      if (ev.id !== eventId) return ev;
-      const updatedTickets = ev.tickets.map(t =>
-        t.id !== ticketId ? t : { ...t, status: "unused", paymentStatus: "paid" }
-      );
-      const updated = { ...ev, tickets: updatedTickets };
-      db.saveEvent(updated).catch(console.error);
-      return updated;
-    }));
-    notify("Payment approved — ticket issued and will be emailed!");
-  }, [notify]);
-
-  const handleRejectPayment = useCallback(async (eventId, ticketId) => {
-    setEvents(evs => evs.map(ev => {
-      if (ev.id !== eventId) return ev;
-      const updatedTickets = ev.tickets.map(t =>
-        t.id !== ticketId ? t : { ...t, status: "rejected", paymentStatus: "rejected" }
-      );
-      const updated = { ...ev, tickets: updatedTickets };
-      db.saveEvent(updated).catch(console.error);
-      return updated;
-    }));
-    notify("Payment rejected.", "error");
-  }, [notify]);
-
   const handleLogin = u => {
     setUser(u);
     // Expose payment config globally so PublicEventPage can read it.
@@ -377,20 +352,22 @@ export default function App() {
     setOrgs(o => o.map(x => {
       if (x.id !== orgId) return x;
       const updated = { ...x, staff: [...x.staff, m] };
-      db.saveOrganizer(updated).catch(console.error);
+      db.saveOrganizer(updated)
+        .then(() => notify("Staff account created"))
+        .catch(e => { console.error(e); notify("Failed to save staff member: " + e.message, "error"); });
       return updated;
     }));
-    notify("Staff account created");
   };
 
   const removeStaff = (orgId, sid) => {
     setOrgs(o => o.map(x => {
       if (x.id !== orgId) return x;
       const updated = { ...x, staff: x.staff.filter(s => s.id !== sid) };
-      db.saveOrganizer(updated).catch(console.error);
+      db.saveOrganizer(updated)
+        .then(() => notify("Staff removed", "error"))
+        .catch(e => { console.error(e); notify("Failed to remove staff member: " + e.message, "error"); });
       return updated;
     }));
-    notify("Staff removed", "error");
   };
 
   const handleScan = useCallback((ticket, status, reason, gateId, gate, ev, scanUser) => {
@@ -475,6 +452,7 @@ export default function App() {
     if (user.role === "admin") {
       if (view === "admin-orgs")     return <AdminOrgs organizers={orgApplications} loading={orgAppsLoading} onApprove={approveOrg} onReject={rejectOrg} />;
       if (view === "admin-payouts")  return <AdminWithdrawals notify={notify} />;
+      if (view === "admin-bank-transfers") return <AdminBankTransfers notify={notify} />;
       if (view === "admin-revenue")  return <AdminRevenue organizers={organizers} events={events} />;
       if (view === "admin-scan-log") return <AdminScanLogView scanLogs={scanLogs} events={events} organizers={organizers} />;
       if (view === "email-blast")     return <EmailBlast org={null} events={events} user={user} notify={notify} />;
@@ -541,8 +519,6 @@ export default function App() {
         onBack={() => nav("events")}
         onNav={nav}
         notify={notify}
-        onApprovePayment={handleApprovePayment}
-        onRejectPayment={handleRejectPayment}
         onAddTicket={(evId, ticket) => setEvents(evs => evs.map(e => {
           if (e.id !== evId) return e;
           const updated = { ...e, tickets: [...e.tickets, ticket] };
@@ -556,7 +532,7 @@ export default function App() {
       revenue:       <RevenueDashboard events={events} orgId={activeOrg.id} />,
       "scan-log":    <ScanLog scanLogs={scanLogs} events={events} orgId={activeOrg.id} />,
       "sponsor-blast": <SponsorBlast org={activeOrg} user={user} notify={notify} />,
-      "account-settings": <AccountSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
+      "account-settings": <AccountSettings org={activeOrg} user={user} onSave={handleAccountUpdate} notify={notify}/>,
       "payment-settings": <PaymentSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
       "wallet": <Wallet notify={notify}/>,
     };

@@ -35,7 +35,7 @@ export const config = {
       pass: process.env.SMTP_PASS || "",
     },
     fromName:    process.env.EMAIL_FROM_NAME    || "Evenova",
-    fromAddress: process.env.EMAIL_FROM_ADDRESS || "hello.evenova@gmail.com",
+    fromAddress: process.env.EMAIL_FROM_ADDRESS || "noreply@evenova.ng",
   },
 
   payments: {
@@ -47,6 +47,14 @@ export const config = {
       secretKey:  process.env.FLW_SECRET_KEY   || "",
       publicKey:  process.env.FLW_PUBLIC_KEY   || "",
       secretHash: process.env.FLW_SECRET_HASH  || "",
+    },
+    // Evenova's own bank account — attendees paying by bank transfer send
+    // money here, never to an organizer's own account. Admin confirms
+    // receipt and the organizer's wallet is credited from there.
+    platformBank: {
+      bankName:      process.env.PLATFORM_BANK_NAME    || "",
+      accountNumber: process.env.PLATFORM_BANK_ACCOUNT || "",
+      accountName:   process.env.PLATFORM_BANK_HOLDER  || "",
     },
   },
 
