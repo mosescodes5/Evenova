@@ -27,6 +27,20 @@ async function assertOwnsEvent(req, eventId) {
   }
 }
 
+// ── GET /api/events-flat/mine ─ caller's own events, full data ─
+// Includes the `tickets` column (attendee names/emails/phones) — only
+// returned to the organizer who owns these events, never to anon.
+router.get("/mine", requireAuth, requireOrganizer, async (req, res, next) => {
+  try {
+    if (!req.user.orgId) return res.status(403).json({ error: "Account has no organizer profile" });
+    let query = supabaseAdmin.from("events").select("*");
+    query = req.user.role === "admin" ? query : query.eq("org_id", req.user.orgId);
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ events: (data ?? []).map(toEvent) });
+  } catch (err) { next(err); }
+});
+
 // ── PUT /api/events-flat ─ create or fully replace an event ───
 router.put("/", requireAuth, requireOrganizer, async (req, res, next) => {
   try {

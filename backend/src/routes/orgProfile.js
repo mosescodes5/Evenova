@@ -11,6 +11,18 @@ import { toOrg, fromOrg } from "../db/legacyMappers.js";
 const router = Router();
 const ALLOWED_FIELDS = ["name", "contactName", "phone", "idType", "idNumber", "expectedGuests", "paymentConfig"];
 
+// ── GET /api/org-profile ─ the caller's own full org record ───
+router.get("/", requireAuth, requireOrganizer, async (req, res, next) => {
+  try {
+    if (!req.user.orgId) return res.status(403).json({ error: "Account has no organizer profile" });
+    const { data, error } = await supabaseAdmin
+      .from("organizers").select("*").eq("id", req.user.orgId).maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: "Organization not found" });
+    res.json({ organizer: toOrg(data) });
+  } catch (err) { next(err); }
+});
+
 router.put("/", requireAuth, requireOrganizer, async (req, res, next) => {
   try {
     if (!req.user.orgId) return res.status(403).json({ error: "Account has no organizer profile" });

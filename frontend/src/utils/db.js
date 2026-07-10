@@ -136,8 +136,12 @@ const fromBlast = (b) => ({
 });
 
 /* ── Organizers ──────────────────────────────────────────── */
+// Reads the public-safe VIEW (no id_number/id_type/phone/contactName/staff)
+// — the anon key can no longer read the raw `organizers` table at all.
+// A logged-in organizer's own full record comes from api.getMyOrgProfile()
+// instead (see App.jsx).
 export async function loadOrganizers() {
-  const { data, error } = await supabase.from("organizers").select("*").order("created_at");
+  const { data, error } = await supabase.from("organizers_public").select("*").order("created_at");
   if (error) throw error;
   return (data ?? []).map(toOrg);
 }
@@ -163,8 +167,11 @@ export async function deleteOrganizer(id) {
 }
 
 /* ── Events ──────────────────────────────────────────────── */
+// Reads the public-safe VIEW (no `tickets` column — attendee names/emails/
+// phones). A logged-in organizer's own events with full attendee data come
+// from api.getMyEvents() instead (see App.jsx).
 export async function loadEvents() {
-  const { data, error } = await supabase.from("events").select("*");
+  const { data, error } = await supabase.from("events_public").select("*");
   if (error) throw error;
   return (data ?? []).map(toEvent);
 }

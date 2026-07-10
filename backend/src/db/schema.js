@@ -42,6 +42,8 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").default(false).notNull(),
   verificationToken: text("verification_token"),
   verificationExpires: timestamp("verification_expires"),
+  resetCodeHash: text("reset_code_hash"),
+  resetExpires: timestamp("reset_expires"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   emailIdx: uniqueIndex("users_email_idx").on(t.email),

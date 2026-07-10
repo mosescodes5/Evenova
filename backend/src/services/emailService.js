@@ -434,12 +434,44 @@ async function sendVerificationEmail(toEmail, toName, token) {
   });
 }
 
+function buildPasswordResetHtml(name, code) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px;">
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);">
+    <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:28px 32px;text-align:center;color:#fff;">
+      <h1 style="margin:0;font-size:22px;font-weight:800;">Reset your password</h1>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="font-size:14px;color:#333;line-height:1.6;">Hi ${name || "there"},</p>
+      <p style="font-size:14px;color:#333;line-height:1.6;">Use this code to reset your Evenova password:</p>
+      <div style="background:#f1f5f9;border-radius:16px;padding:24px;text-align:center;margin:24px 0;">
+        <p style="font-size:36px;font-weight:900;letter-spacing:10px;color:#1e293b;font-family:monospace;margin:0;">${code}</p>
+      </div>
+      <p style="font-size:12px;color:#999;line-height:1.6;">This code expires in 30 minutes. If you didn't request this, you can safely ignore this email — your password won't change.</p>
+    </div>
+    <div style="padding:16px 32px;background:#fafafa;text-align:center;font-size:12px;color:#999;border-top:1px solid #f0f0f0;">
+      Evenova · hello.evenova@gmail.com
+    </div>
+  </div>
+</body></html>`;
+}
+
+async function sendPasswordResetEmail(toEmail, toName, code) {
+  return send({
+    to: toEmail,
+    toName,
+    subject: "Your Evenova password reset code",
+    htmlBody: buildPasswordResetHtml(toName, code),
+  });
+}
+
 // ─── Exports ──────────────────────────────────────────────────────────────────
 export const emailService = {
   send,
   blast,
   sendTicketEmail,
   sendVerificationEmail,
+  sendPasswordResetEmail,
   buildTicketHtml,
   configure:   configureEmail,
   getStatus:   getEmailStatus,

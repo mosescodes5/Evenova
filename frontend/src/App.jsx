@@ -5,7 +5,6 @@ import StyleInjector from "./styles/StyleInjector.jsx";
 import { genId } from "./utils/crypto.js";
 import { DEFAULT_EVENTS, DEFAULT_ORGS } from "./data/seedData.js";
 import * as db from "./utils/db.js";
-import { sendEmail } from "./utils/email.js";
 import { KEYS, storGet, storSet } from "./utils/storage.js";
 import { api } from "./utils/api.js";
 
@@ -87,7 +86,6 @@ export default function App() {
   const [registerError, setRegisterError]   = useState("");
   const [registerLoading, setRegisterLoading] = useState(false);
   const [forgotLoading, setForgotLoading]     = useState(false);
-  const [forgotTarget, setForgotTarget]       = useState(null);
 
   // ── Load from Supabase on mount ───────────────────────────
   useEffect(() => {
@@ -228,62 +226,33 @@ export default function App() {
   };
 
   // ── Forgot password ───────────────────────────────────────
+  // Goes through the backend now: a bcrypt-hashed code is stored on the
+  // real `users` row and the real `passwordHash` gets updated on reset.
+  // (The old version wrote a plaintext password onto the `organizers` row
+  // in Supabase, which had no connection to what login actually checks —
+  // resets never worked.)
   const handleForgotSend = async (email, onSent) => {
     setForgotLoading(true);
-    const org = organizers.find(o => o.email === email);
-    if (!org) {
-      notify("If that email is registered, a reset code has been sent.", "info");
-      setForgotLoading(false);
-      onSent?.();
-      return;
-    }
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setForgotTarget({ email, orgId: org.id, code });
     try {
-      await db.saveOrganizer({ ...org, verifyCode: code, verifyExpiry: Date.now() + 30 * 60 * 1000 });
-      setOrgs(os => os.map(o => o.id === org.id ? { ...o, verifyCode: code, verifyExpiry: Date.now() + 30 * 60 * 1000 } : o));
-    } catch (e) { console.error("save reset code failed", e); }
-    try {
-      await sendEmail({
-        to: email,
-        toName: org.contactName || org.name,
-        subject: "Evenova Password Reset Code",
-        htmlBody: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
-          <h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Reset your password</h2>
-          <p style="color:#64748b;margin-bottom:24px;">Hi ${org.contactName || org.name}, use this code to reset your Evenova password:</p>
-          <div style="background:#f1f5f9;border-radius:16px;padding:24px;text-align:center;margin-bottom:24px;">
-            <p style="font-size:42px;font-weight:900;letter-spacing:12px;color:#1e293b;font-family:monospace;margin:0;">${code}</p>
-          </div>
-          <p style="color:#94a3b8;font-size:13px;">This code expires in 30 minutes. If you didn't request this, ignore this email.</p>
-        </div>`,
-        fromName: "Evenova",
-        fromEmail: "hello.evenova@gmail.com",
-      });
-    } catch {
-      console.log(`[Evenova] Password reset code for ${email}: ${code}`);
+      await api.forgotPassword(email);
+    } catch (e) {
+      console.error("forgot-password request failed", e);
     }
+    // Always show the same generic message — the backend never reveals
+    // whether the account exists either.
     setForgotLoading(false);
     onSent?.();
-    notify("Reset code sent! Check your email.", "info");
+    notify("If that email is registered, a reset code has been sent.", "info");
   };
 
   const handleForgotVerify = async (email, code, newPassword) => {
     setForgotLoading(true);
-    const org = organizers.find(o => o.email === email);
-    if (!org) { notify("Account not found.", "error"); setForgotLoading(false); return; }
-    const storedCode = forgotTarget?.code || org.verifyCode;
-    const expiry     = org.verifyExpiry;
-    if (!storedCode || storedCode !== code) { notify("Incorrect code. Try again.", "error"); setForgotLoading(false); return; }
-    if (expiry && Date.now() > expiry) { notify("Code expired. Please request a new one.", "error"); setForgotLoading(false); return; }
-    const updated = { ...org, password: newPassword, verifyCode: null, verifyExpiry: null };
     try {
-      await db.saveOrganizer(updated);
-      setOrgs(os => os.map(o => o.id === org.id ? updated : o));
-      setForgotTarget(null);
+      await api.resetPassword(email, code, newPassword);
       notify("Password reset! You can now log in.");
       nav("login");
     } catch (e) {
-      notify("Failed to update password: " + e.message, "error");
+      notify(e.message || "Failed to reset password.", "error");
     } finally {
       setForgotLoading(false);
     }
@@ -298,6 +267,31 @@ export default function App() {
   };
 
   // ── Bank payment approve / reject ─────────────────────────
+  // Once logged in as an organizer, the public views used for anonymous
+  // browsing (no tickets/KYC fields/staff) aren't enough for their own
+  // dashboard — fetch the full versions of just their own org/events and
+  // merge them in over the public-view placeholders.
+  useEffect(() => {
+    if (!user?.orgId) return;
+    const token = storGet(KEYS.TOKEN, null);
+    if (!token) return;
+
+    api.getMyOrgProfile(token)
+      .then(({ organizer }) => setOrgs(os => os.map(o => o.id === organizer.id ? organizer : o)))
+      .catch(e => console.error("Failed to load full organizer profile", e));
+
+    api.getMyEvents(token)
+      .then(({ events: mine }) => setEvents(evs => {
+        const mineIds = new Set(mine.map(e => e.id));
+        return [...evs.filter(e => !mineIds.has(e.id)), ...mine];
+      }))
+      .catch(e => console.error("Failed to load full event data", e));
+
+    api.getMyScanLogs(token)
+      .then(({ logs }) => setScanLogs(logs))
+      .catch(e => console.error("Failed to load scan logs", e));
+  }, [user?.orgId]);
+
   const handleLogin = u => {
     setUser(u);
     // Expose payment config globally so PublicEventPage can read it.

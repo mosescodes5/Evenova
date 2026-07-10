@@ -99,7 +99,7 @@ function StepReset({ email, onVerify, onResend, loading }) {
     setErr("");
     const entered = code.join("");
     if (entered.length < 6) { setErr("Enter the full 6-digit code."); return; }
-    if (pw.length < 6) { setErr("New password must be at least 6 characters."); return; }
+    if (pw.length < 8) { setErr("New password must be at least 8 characters."); return; }
     if (pw !== pw2) { setErr("Passwords don't match."); return; }
     onVerify(email, entered, pw);
   };
@@ -152,7 +152,7 @@ function StepReset({ email, onVerify, onResend, loading }) {
             </label>
             <div style={{ position:"relative", display:"flex", alignItems:"center" }}>
               <input type={showPw ? "text" : "password"} value={pw} onChange={e => setPw(e.target.value)}
-                placeholder="Min 6 characters" style={{ width:"100%", padding:"10px 44px 10px 14px",
+                placeholder="Min 8 characters" style={{ width:"100%", padding:"10px 44px 10px 14px",
                   borderRadius:10, fontSize:14, color:T.text, background:T.surface,
                   border:`1px solid ${T.border}`, fontFamily:"inherit", outline:"none" }}
                 onFocus={e => e.target.style.borderColor = T.accent}

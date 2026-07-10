@@ -9,6 +9,7 @@ import { db, schema } from "../db/index.js";
 import { emailService } from "../services/emailService.js";
 
 const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const RESET_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 function makeVerificationToken() {
   return crypto.randomBytes(32).toString("hex");
@@ -163,6 +164,59 @@ router.post("/resend-verification", authLimiter, async (req, res, next) => {
     }
 
     res.json({ message: "If an account exists for that email, a new verification link has been sent." });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/auth/forgot-password ───────────────────────────
+// Body: { email }
+// Always returns the same generic message — never reveals whether an
+// account exists. Stores only a bcrypt HASH of the code, never the code
+// itself, so a database read (or leaked backup) can't be used to reset
+// someone's password.
+router.post("/forgot-password", authLimiter, async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "email required" });
+
+    const user = await db.query.users.findFirst({ where: eq(users.email, email.toLowerCase()) });
+    if (user) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const resetCodeHash = await bcrypt.hash(code, 12);
+      const resetExpires = new Date(Date.now() + RESET_TTL_MS);
+
+      await db.update(users).set({ resetCodeHash, resetExpires }).where(eq(users.id, user.id));
+
+      emailService.sendPasswordResetEmail(user.email, user.name, code)
+        .catch(err => console.error("Failed to send password reset email:", err));
+    }
+
+    res.json({ message: "If that email is registered, a reset code has been sent." });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/auth/reset-password ────────────────────────────
+// Body: { email, code, newPassword }
+router.post("/reset-password", authLimiter, async (req, res, next) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) return res.status(400).json({ error: "email, code and newPassword required" });
+    if (newPassword.length < 8) return res.status(400).json({ error: "password must be at least 8 characters" });
+
+    const user = await db.query.users.findFirst({ where: eq(users.email, email.toLowerCase()) });
+
+    // Same timing-attack-avoidance trick as login: always run bcrypt.compare.
+    const match = await bcrypt.compare(code, user?.resetCodeHash || "$2a$12$invalidsaltinvalidsaltinvalidsalt");
+    if (!user || !match) return res.status(400).json({ error: "Incorrect or expired code." });
+    if (!user.resetExpires || new Date(user.resetExpires) < new Date()) {
+      return res.status(400).json({ error: "This code has expired. Please request a new one." });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await db.update(users)
+      .set({ passwordHash, resetCodeHash: null, resetExpires: null })
+      .where(eq(users.id, user.id));
+
+    res.json({ message: "Password reset! You can now log in." });
   } catch (err) { next(err); }
 });
 

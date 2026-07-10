@@ -40,6 +40,9 @@ export const api = {
   verifyEmail: (token) => request("/auth/verify-email", { method: "POST", body: { token } }),
   resendVerification: (email) => request("/auth/resend-verification", { method: "POST", body: { email } }),
   logout: (token) => request("/auth/logout", { method: "POST", token }),
+  forgotPassword: (email) => request("/auth/forgot-password", { method: "POST", body: { email } }),
+  resetPassword: (email, code, newPassword) =>
+    request("/auth/reset-password", { method: "POST", body: { email, code, newPassword } }),
 
   // Admin — reviewing organizer applications
   listOrganizerApplications:   (token) => request("/admin/organizers", { token }),
@@ -86,11 +89,14 @@ export const api = {
   // Events — create/update goes through the backend now (was direct-to-Supabase)
   saveEvent: (event, token) => request("/events-flat", { method: "PUT", body: event, token }),
   registerForEvent: (eventId, ticket) => request(`/events-flat/${eventId}/register`, { method: "POST", body: { ticket } }),
+  getMyEvents: (token) => request("/events-flat/mine", { token }),
 
   // Scan logs / email blasts — same reasoning
   saveScanLog: (log, token) => request("/scan-logs", { method: "POST", body: log, token }),
   saveEmailBlast: (blast, token) => request("/email-blasts", { method: "POST", body: blast, token }),
+  getMyScanLogs: (token) => request("/scan-logs/mine", { token }),
 
   // Organizer account/payment settings
   updateOrgProfile: (updates, token) => request("/org-profile", { method: "PUT", body: updates, token }),
+  getMyOrgProfile: (token) => request("/org-profile", { token }),
 };
