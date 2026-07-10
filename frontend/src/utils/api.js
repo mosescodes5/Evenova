@@ -22,6 +22,13 @@ async function request(path, { method = "GET", body, token } = {}) {
     const err = new Error(data?.error || `Request failed (${res.status})`);
     err.status = res.status;
     err.code = data?.code;
+    // A 401 here means the stored token is missing/invalid/expired — every
+    // subsequent authenticated call will fail the same way until the user
+    // logs in again. Broadcast it so App.jsx can log out + notify instead
+    // of each caller failing quietly on its own (e.g. wallet screens).
+    if (res.status === 401 && typeof window !== "undefined" && path !== "/auth/login") {
+      window.dispatchEvent(new CustomEvent("evenova:unauthorized"));
+    }
     throw err;
   }
   return data;

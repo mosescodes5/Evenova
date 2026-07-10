@@ -180,6 +180,19 @@ export default function App() {
     }
   }, []);
   const logout = () => { setUser(null); setView("landing"); storSet(KEYS.USER, null); storSet(KEYS.VIEW, "landing"); storSet(KEYS.TOKEN, null); window.history.pushState({}, "", "/"); };
+
+  // If any backend call comes back 401 (missing/expired/invalid token), log
+  // out and say so — rather than leaving wallet/team/admin screens quietly
+  // broken with nothing but a console error.
+  useEffect(() => {
+    const onUnauthorized = () => {
+      if (!user) return;
+      logout();
+      notify("Your session has expired — please log in again.", "error");
+    };
+    window.addEventListener("evenova:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("evenova:unauthorized", onUnauthorized);
+  }, [user]);
   const getOrg = useCallback(u => organizers.find(o => o.id === (u?.id || u?.orgId)), [organizers]);
 
   // ── Registration with email verify ────────────────────────
@@ -343,8 +356,16 @@ export default function App() {
 
   const createEvent = ev => {
     setEvents(e => [...e, ev]);
-    db.saveEvent(ev).catch(console.error);
-    notify(`Event created with ${ev.tickets.length} signed tickets!`);
+    db.saveEvent(ev)
+      .then(() => notify(`Event created with ${ev.tickets.length} signed tickets!`))
+      .catch(e => {
+        console.error(e);
+        // Don't silently lose the event — roll back the optimistic UI update
+        // and tell the organizer it didn't actually save, so they don't
+        // think it worked only to find it gone after a refresh.
+        setEvents(evs => evs.filter(x => x.id !== ev.id));
+        notify(`Failed to save event: ${e.message || "unknown error"}. Please try again.`, "error");
+      });
     nav("dashboard");
   };
 
@@ -381,7 +402,10 @@ export default function App() {
       status, reason: reason || "",
     };
     setScanLogs(l => [...l, log]);
-    db.insertScanLog(log).catch(console.error);
+    db.insertScanLog(log).catch(e => {
+      console.error(e);
+      notify(`Failed to save scan log: ${e.message || "unknown error"}`, "error");
+    });
 
     if (status === "admitted" && ticket) {
       const key = `${ev.id}:${ticket.id}`;
@@ -393,7 +417,10 @@ export default function App() {
           checkinCount: e.checkinCount + 1,
           tickets: e.tickets.map(t => t.id === ticket.id ? { ...t, status: "used" } : t),
         };
-        db.saveEvent(updated).catch(console.error);
+        db.saveEvent(updated).catch(e => {
+          console.error(e);
+          notify(`Check-in didn't save: ${e.message || "unknown error"}`, "error");
+        });
         return updated;
       }));
     }
@@ -431,7 +458,10 @@ export default function App() {
           setEvents(evs => evs.map(e => {
             if (e.id !== evId) return e;
             const updated = { ...e, tickets: [...e.tickets, tkt] };
-            db.saveEvent(updated).catch(console.error);
+            db.saveEvent(updated).catch(e => {
+              console.error(e);
+              notify("Your registration didn't save properly — please contact the organizer.", "error");
+            });
             return updated;
           }));
         }} notify={notify} />
@@ -522,7 +552,10 @@ export default function App() {
         onAddTicket={(evId, ticket) => setEvents(evs => evs.map(e => {
           if (e.id !== evId) return e;
           const updated = { ...e, tickets: [...e.tickets, ticket] };
-          db.saveEvent(updated).catch(console.error);
+          db.saveEvent(updated).catch(e => {
+            console.error(e);
+            notify(`Failed to save ticket: ${e.message || "unknown error"}`, "error");
+          });
           return updated;
         }))}
       /> : null,
