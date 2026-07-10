@@ -15,6 +15,14 @@ export const config = {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   },
 
+  // Service-role access to the "legacy" flat Supabase tables (events,
+  // organizers, scan_logs, email_blasts). NEVER expose the service-role key
+  // to the frontend — it bypasses Row Level Security entirely.
+  supabase: {
+    url:            process.env.SUPABASE_URL || "",
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  },
+
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
 
   db: {

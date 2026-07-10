@@ -293,8 +293,7 @@ export default function App() {
   const handleAccountUpdate = async (updates) => {
     const activeOrg = organizers.find(o => o.id === user?.orgId);
     if (!activeOrg) throw new Error("Organization not found");
-    const updated = { ...activeOrg, ...updates };
-    await db.saveOrganizer(updated);
+    const { organizer: updated } = await api.updateOrgProfile(updates, storGet(KEYS.TOKEN, null));
     setOrgs(os => os.map(o => o.id === updated.id ? updated : o));
   };
 
@@ -356,13 +355,11 @@ export default function App() {
 
   const createEvent = ev => {
     setEvents(e => [...e, ev]);
-    db.saveEvent(ev)
+    const token = storGet(KEYS.TOKEN, null);
+    api.saveEvent(ev, token)
       .then(() => notify(`Event created with ${ev.tickets.length} signed tickets!`))
       .catch(e => {
         console.error(e);
-        // Don't silently lose the event — roll back the optimistic UI update
-        // and tell the organizer it didn't actually save, so they don't
-        // think it worked only to find it gone after a refresh.
         setEvents(evs => evs.filter(x => x.id !== ev.id));
         notify(`Failed to save event: ${e.message || "unknown error"}. Please try again.`, "error");
       });
@@ -370,25 +367,23 @@ export default function App() {
   };
 
   const addStaff = (orgId, m) => {
-    setOrgs(o => o.map(x => {
-      if (x.id !== orgId) return x;
-      const updated = { ...x, staff: [...x.staff, m] };
-      db.saveOrganizer(updated)
-        .then(() => notify("Staff account created"))
-        .catch(e => { console.error(e); notify("Failed to save staff member: " + e.message, "error"); });
-      return updated;
-    }));
+    const token = storGet(KEYS.TOKEN, null);
+    api.addTeamMember(m, token)
+      .then(({ staff }) => {
+        setOrgs(o => o.map(x => x.id === orgId ? { ...x, staff } : x));
+        notify("Staff account created");
+      })
+      .catch(e => { console.error(e); notify("Failed to save staff member: " + e.message, "error"); });
   };
 
   const removeStaff = (orgId, sid) => {
-    setOrgs(o => o.map(x => {
-      if (x.id !== orgId) return x;
-      const updated = { ...x, staff: x.staff.filter(s => s.id !== sid) };
-      db.saveOrganizer(updated)
-        .then(() => notify("Staff removed", "error"))
-        .catch(e => { console.error(e); notify("Failed to remove staff member: " + e.message, "error"); });
-      return updated;
-    }));
+    const token = storGet(KEYS.TOKEN, null);
+    api.removeTeamMember(sid, token)
+      .then(({ staff }) => {
+        setOrgs(o => o.map(x => x.id === orgId ? { ...x, staff } : x));
+        notify("Staff removed");
+      })
+      .catch(e => { console.error(e); notify("Failed to remove staff member: " + e.message, "error"); });
   };
 
   const handleScan = useCallback((ticket, status, reason, gateId, gate, ev, scanUser) => {
@@ -402,7 +397,8 @@ export default function App() {
       status, reason: reason || "",
     };
     setScanLogs(l => [...l, log]);
-    db.insertScanLog(log).catch(e => {
+    const token = storGet(KEYS.TOKEN, null);
+    api.saveScanLog(log, token).catch(e => {
       console.error(e);
       notify(`Failed to save scan log: ${e.message || "unknown error"}`, "error");
     });
@@ -417,7 +413,7 @@ export default function App() {
           checkinCount: e.checkinCount + 1,
           tickets: e.tickets.map(t => t.id === ticket.id ? { ...t, status: "used" } : t),
         };
-        db.saveEvent(updated).catch(e => {
+        api.saveEvent(updated, token).catch(e => {
           console.error(e);
           notify(`Check-in didn't save: ${e.message || "unknown error"}`, "error");
         });
@@ -458,12 +454,12 @@ export default function App() {
           setEvents(evs => evs.map(e => {
             if (e.id !== evId) return e;
             const updated = { ...e, tickets: [...e.tickets, tkt] };
-            db.saveEvent(updated).catch(e => {
-              console.error(e);
-              notify("Your registration didn't save properly — please contact the organizer.", "error");
-            });
             return updated;
           }));
+          api.registerForEvent(evId, tkt).catch(e => {
+            console.error(e);
+            notify("Your registration didn't save properly — please contact the organizer.", "error");
+          });
         }} notify={notify} />
     );
     if (view === "register") return <Register onSubmit={handleRegister} onNav={v=>{setRegisterError("");nav(v);}} error={registerError} loading={registerLoading}/>;
@@ -552,7 +548,7 @@ export default function App() {
         onAddTicket={(evId, ticket) => setEvents(evs => evs.map(e => {
           if (e.id !== evId) return e;
           const updated = { ...e, tickets: [...e.tickets, ticket] };
-          db.saveEvent(updated).catch(e => {
+          api.saveEvent(updated, storGet(KEYS.TOKEN, null)).catch(e => {
             console.error(e);
             notify(`Failed to save ticket: ${e.message || "unknown error"}`, "error");
           });

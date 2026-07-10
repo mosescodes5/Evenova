@@ -14,6 +14,11 @@ import whatsappRoutes  from "./routes/whatsapp.js";
 import adminRoutes     from "./routes/admin.js";
 import paymentsRoutes  from "./routes/payments.js";
 import walletRoutes    from "./routes/wallet.js";
+import teamRoutes        from "./routes/team.js";
+import eventsFlatRoutes  from "./routes/eventsFlat.js";
+import scanLogsFlatRoutes  from "./routes/scanLogsFlat.js";
+import emailBlastsFlatRoutes from "./routes/emailBlastsFlat.js";
+import orgProfileRoutes  from "./routes/orgProfile.js";
 
 const app = express();
 
@@ -56,6 +61,11 @@ app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/admin",    adminRoutes);
 app.use("/api/payments", paymentsRoutes);
 app.use("/api/wallet",   walletRoutes);
+app.use("/api/team",         teamRoutes);
+app.use("/api/events-flat",  eventsFlatRoutes);
+app.use("/api/scan-logs",    scanLogsFlatRoutes);
+app.use("/api/email-blasts", emailBlastsFlatRoutes);
+app.use("/api/org-profile",  orgProfileRoutes);
 
 // ── 404 ─────────────────────────────────────────────────────
 app.use((_req, res) => {

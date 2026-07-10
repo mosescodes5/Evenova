@@ -24,6 +24,7 @@
     "morgan": "^1.10.0",
     "nodemailer": "^6.9.14",
     "pg": "^8.13.1",
+    "@supabase/supabase-js": "^2.45.4",
     "qrcode": "^1.5.4",
     "uuid": "^10.0.0"
   },

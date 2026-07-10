@@ -76,4 +76,21 @@ export const api = {
     request("/admin/bank-transfers/confirm", { method: "POST", body: { eventId, ticketId }, token }),
   rejectBankTransfer: (eventId, ticketId, reason, token) =>
     request("/admin/bank-transfers/reject", { method: "POST", body: { eventId, ticketId, reason }, token }),
+
+  // Team — organizer staff management (goes through the backend now, not
+  // straight to Supabase, so it's scoped to the caller's own org)
+  listTeam:   (token) => request("/team", { token }),
+  addTeamMember:    (member, token) => request("/team", { method: "POST", body: member, token }),
+  removeTeamMember: (staffId, token) => request(`/team/${staffId}`, { method: "DELETE", token }),
+
+  // Events — create/update goes through the backend now (was direct-to-Supabase)
+  saveEvent: (event, token) => request("/events-flat", { method: "PUT", body: event, token }),
+  registerForEvent: (eventId, ticket) => request(`/events-flat/${eventId}/register`, { method: "POST", body: { ticket } }),
+
+  // Scan logs / email blasts — same reasoning
+  saveScanLog: (log, token) => request("/scan-logs", { method: "POST", body: log, token }),
+  saveEmailBlast: (blast, token) => request("/email-blasts", { method: "POST", body: blast, token }),
+
+  // Organizer account/payment settings
+  updateOrgProfile: (updates, token) => request("/org-profile", { method: "PUT", body: updates, token }),
 };
