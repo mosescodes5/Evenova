@@ -40,7 +40,7 @@ export default function HowItWorks({ onNav }) {
     { icon: Settings,       color: T.accent,  title: "Create your account",          desc: "Register as an organizer in under 2 minutes. Verified by the Evenova admin team — your profile goes live after approval." },
     { icon: LayoutDashboard,color: T.info,    title: "Build your event",             desc: "Set up title, description, venue, time, gates, and multiple ticket tiers. You control pricing and quantities." },
     { icon: Ticket,         color: T.gold,    title: "Design ticket tiers & form",   desc: "Add custom checkout fields — dietary requirements, t-shirt size, referral codes — and upload custom ticket artwork per tier." },
-    { icon: Link2,          color: T.success, title: "Share your event page",        desc: "Every event gets a public page with a clean ticket purchase flow and secure Paystack checkout. Share the link anywhere." },
+    { icon: Link2,          color: T.success, title: "Share your event page",        desc: "Every event gets a public page with a clean ticket purchase flow and secure Korapay checkout. Share the link anywhere." },
     { icon: QrCode,         color: T.accentL, title: "Tickets go out automatically", desc: "Once an attendee pays, they get a signed QR code ticket by email instantly. Each ticket is cryptographically unique and unforgeable." },
     { icon: Camera,         color: "#06b6d4", title: "Scan on the day",              desc: "Use the Evenova Scanner on any phone — camera mode detects QR codes instantly, no special hardware needed. Works offline too." },
     { icon: LayoutDashboard,color: T.warn,    title: "Track it all live",            desc: "Watch check-ins in real time on the Live Dashboard. Revenue, gate traffic, and ticket breakdowns as your event unfolds." },
@@ -49,7 +49,7 @@ export default function HowItWorks({ onNav }) {
   const ATTENDEE_STEPS = [
     { icon: Ticket,     color: T.accent,  title: "Find an event",           desc: "Browse events on the Evenova public page. Filter by city, category, or date. Click to see full details, tiers, and pricing." },
     { icon: Users,      color: T.gold,    title: "Fill in your details",    desc: "The checkout form collects exactly what the organizer needs — custom fields let them ask for only what's relevant." },
-    { icon: CreditCard, color: T.success, title: "Pay securely",            desc: "Checkout is powered by Paystack — Nigeria's most trusted gateway. Cards, bank transfer, and USSD all supported." },
+    { icon: CreditCard, color: T.success, title: "Pay securely",            desc: "Checkout is powered by Korapay — a trusted Nigerian payment gateway. Cards, bank transfer, and USSD all supported." },
     { icon: Mail,       color: T.info,    title: "Receive your QR ticket",  desc: "Your signed QR ticket arrives by email instantly. Save it to your phone — no printing needed. Each ticket is unique and tamper-proof." },
     { icon: Scan,       color: T.accentL, title: "Scan in at the gate",     desc: "Show your QR code at the gate. Admission in under a second. Wrong gate? Wrong event? The scanner catches it automatically." },
   ];

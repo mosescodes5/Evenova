@@ -3,7 +3,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { db, schema, pool } from "../db/index.js";
 import { walletService } from "../services/walletService.js";
-import { paystackTransferService } from "../services/paystackTransferService.js";
+import { korapayTransferService } from "../services/korapayTransferService.js";
 import { calcOrganizerEarningNaira } from "../utils/fees.js";
 import { emailService } from "../services/emailService.js";
 
@@ -86,8 +86,8 @@ router.get("/withdrawals", async (req, res, next) => {
 });
 
 // ── POST /api/admin/withdrawals/:id/approve ─────────────────────
-// Bank withdrawals: attempts an automatic payout via Paystack Transfers,
-// straight out of Evenova's Paystack balance, and debits the wallet only
+// Bank withdrawals: attempts an automatic payout via Korapay's disburse API,
+// straight out of Evenova's Korapay balance, and debits the wallet only
 // once the transfer is actually initiated. If the transfer API call fails
 // (insufficient platform balance, invalid account, etc.) nothing is
 // debited and the request stays pending — safe to retry.
@@ -111,30 +111,30 @@ router.post("/withdrawals/:id/approve", async (req, res, next) => {
     }
 
     // Bank withdrawal — attempt the real transfer now.
-    const recipientCode = await paystackTransferService.createTransferRecipient({
+    const requester = w.requestedBy ? await db.query.users.findFirst({ where: eq(users.id, w.requestedBy) }) : null;
+    const reference = `wd_${w.id}`;
+    const transfer = await korapayTransferService.initiatePayout({
       accountNumber: w.accountNumber, bankCode: w.bankCode, accountName: w.accountName,
-    });
-    const transfer = await paystackTransferService.initiateTransfer({
-      recipientCode, amountKobo: w.amountKobo,
-      reason: `Evenova payout — withdrawal ${w.id}`,
-      reference: `wd_${w.id}`,
+      amountKobo: w.amountKobo,
+      narration: `Evenova payout — withdrawal ${w.id}`,
+      reference,
+      email: requester?.email || "payouts@evenova.app",
     });
 
     await walletService.debitForWithdrawal({
       orgId: w.orgId, amountKobo: w.amountKobo, withdrawalId: w.id,
-      note: "Withdrawal paid via Paystack transfer",
+      note: "Withdrawal paid via Korapay transfer",
     });
     await db.update(withdrawals)
       .set({
         status: "paid",
-        paystackTransferCode: transfer.transferCode,
-        providerReference: transfer.transferCode,
+        providerReference: transfer.reference,
         processedBy: req.user.id,
         processedAt: new Date(),
       })
       .where(eq(withdrawals.id, id));
 
-    res.json({ message: "Transfer initiated", transferCode: transfer.transferCode });
+    res.json({ message: "Transfer initiated", reference: transfer.reference });
   } catch (err) {
     res.status(400).json({ error: "Transfer failed: " + (err.message || "unknown error") });
   }

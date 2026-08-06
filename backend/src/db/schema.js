@@ -155,8 +155,8 @@ export const withdrawals = pgTable("withdrawals", {
   cryptoAddress: varchar("crypto_address", { length: 200 }),
 
   // Fulfillment
-  paystackTransferCode: varchar("paystack_transfer_code", { length: 100 }),
-  providerReference: varchar("provider_reference", { length: 200 }), // tx hash for crypto, transfer code for bank
+  paystackTransferCode: varchar("paystack_transfer_code", { length: 100 }), // legacy — unused since the Korapay migration, kept to avoid a migration; use providerReference instead
+  providerReference: varchar("provider_reference", { length: 200 }), // tx hash for crypto, transfer/disburse reference for bank
   adminNote: text("admin_note"),
   processedBy: uuid("processed_by").references(() => users.id),
   processedAt: timestamp("processed_at"),

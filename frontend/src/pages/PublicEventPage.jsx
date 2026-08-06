@@ -5,7 +5,7 @@ import { Bdg, Btn, Card, Inp, QRDisplay } from "../components/ui/index.jsx";
 import { useMedia } from "../hooks/useMedia.js";
 import { genId, encodeTicket } from "../utils/crypto.js";
 import { sendTicketEmail } from "../utils/email.js";
-import { openPaystackCheckout, openFlutterwaveCheckout } from "../utils/payment.js";
+import { openKorapayCheckout } from "../utils/payment.js";
 import { api } from "../utils/api.js";
 
 function CustomField({ field, value, onChange }) {
@@ -149,15 +149,9 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
     const holderName=formData[event.regFields[0]?.id]||"Attendee";
     const holderPhone=formData[event.regFields[2]?.id]||"";
     const chargeAmount = calcTotalWithCharge(selType.price, event.feeMode);
-    if (payProvider==="card"||payProvider==="paystack") {
+    if (payProvider==="card"||payProvider==="korapay") {
       setSubmitting(false); setPayStep("paying");
-      try { await openPaystackCheckout({ email:holderEmail,name:holderName,amount:chargeAmount,eventTitle:event.title,onSuccess:async(ref)=>{setSubmitting(true);await issueTicket(ref,"paid","paystack")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
-      catch(e) { setPayStep("form");notify(e.message,"error"); }
-      return;
-    }
-    if (payProvider==="flutterwave") {
-      setSubmitting(false); setPayStep("paying");
-      try { await openFlutterwaveCheckout({ email:holderEmail,name:holderName,phone:holderPhone,amount:chargeAmount,eventTitle:event.title,onSuccess:async(txId)=>{setSubmitting(true);await issueTicket(String(txId),"paid","flutterwave")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
+      try { await openKorapayCheckout({ email:holderEmail,name:holderName,amount:chargeAmount,eventTitle:event.title,onSuccess:async(ref)=>{setSubmitting(true);await issueTicket(ref,"paid","korapay")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
       catch(e) { setPayStep("form");notify(e.message,"error"); }
       return;
     }
@@ -299,7 +293,7 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
                 {payStep!=="paying"&&payStep!=="bank-receipt"&&(()=>{
                   const cfg=getPayCfg();
                   const total=calcTotalWithCharge(selType?.price||0, event.feeMode);
-                  const btnLabel=submitting?"Processing…":isFree?"Register Free":cfg.provider==="paystack"?`Pay ₦${total.toLocaleString()} with Paystack`:cfg.provider==="flutterwave"?`Pay ₦${total.toLocaleString()} with Flutterwave`:cfg.provider==="bank"?`Register · Pay ₦${total.toLocaleString()} via Transfer`:`Register · ₦${total.toLocaleString()}`;
+                  const btnLabel=submitting?"Processing…":isFree?"Register Free":(cfg.provider==="card"||cfg.provider==="korapay")?`Pay ₦${total.toLocaleString()} with Korapay`:cfg.provider==="bank"?`Register · Pay ₦${total.toLocaleString()} via Transfer`:`Register · ₦${total.toLocaleString()}`;
                   return (
                     <div>
                       {!isFree&&<PriceBreakdown price={selType?.price||0} feeMode={event.feeMode}/>}

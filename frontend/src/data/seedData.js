@@ -133,6 +133,6 @@ export const DEFAULT_ORGS = [
 
 export const ADS = [
   { id:"a1", brand:"GTBank",          title:"Power your event payments",       sub:"Accept payments from any bank. Zero setup fee.", cta:"Get Started", color:"#f97316" },
-  { id:"a2", brand:"Flutterwave",     title:"Send & receive money across Africa", sub:"100+ currencies. Instant settlements for event revenue.", cta:"Learn More", color:"#f59e0b" },
+  { id:"a2", brand:"Korapay",         title:"Send & receive money across Africa", sub:"100+ currencies. Instant settlements for event revenue.", cta:"Learn More", color:"#f59e0b" },
   { id:"a3", brand:"Lagos Tourism",   title:"Lagos: Africa's Event Capital",   sub:"Discover world-class venues across Lagos State.", cta:"Explore", color:"#10b981" },
 ];

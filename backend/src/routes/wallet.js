@@ -4,7 +4,7 @@ import { requireAuth, requireOrganizer } from "../middleware/auth.js";
 import { ticketLimiter } from "../middleware/rateLimiter.js";
 import { db, schema } from "../db/index.js";
 import { walletService } from "../services/walletService.js";
-import { paystackTransferService } from "../services/paystackTransferService.js";
+import { korapayTransferService } from "../services/korapayTransferService.js";
 
 const { withdrawals } = schema;
 const router = Router();
@@ -34,7 +34,7 @@ router.get("/transactions", async (req, res, next) => {
 // Nigerian bank list for the withdrawal form's bank picker.
 router.get("/banks", async (req, res, next) => {
   try {
-    const banks = await paystackTransferService.listBanks();
+    const banks = await korapayTransferService.listBanks();
     res.json(banks);
   } catch (err) { next(err); }
 });
@@ -48,7 +48,7 @@ router.post("/resolve-account", async (req, res, next) => {
     if (!accountNumber || !bankCode) {
       return res.status(400).json({ error: "accountNumber and bankCode are required" });
     }
-    const result = await paystackTransferService.resolveAccount(accountNumber, bankCode);
+    const result = await korapayTransferService.resolveAccount(accountNumber, bankCode);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: "Couldn't verify that account — double check the number and bank." });
@@ -69,7 +69,7 @@ router.get("/withdrawals", async (req, res, next) => {
 // ── POST /api/wallet/withdrawals ────────────────────────────
 // Creates a withdrawal request. Money does NOT move yet — this just puts
 // the request in the queue. Bank withdrawals can be auto-paid by an admin
-// via Paystack Transfers; crypto withdrawals are always fulfilled manually
+// via Korapay payouts; crypto withdrawals are always fulfilled manually
 // (see admin.js for why).
 router.post("/withdrawals", ticketLimiter, async (req, res, next) => {
   try {

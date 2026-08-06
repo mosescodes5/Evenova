@@ -23,7 +23,7 @@ function Section({ icon: Icon, title, subtitle, children }) {
 
 const PROVIDERS = [
   { id: "none",   label: "🔓 Free / Manual",  desc: "No payment collected. Tickets are issued immediately on registration." },
-  { id: "card",   label: "💳 Card Payments (Paystack/Flutterwave)", desc: "Enabled automatically — no setup needed. Sales are credited straight to your Evenova wallet; withdraw anytime from Wallet." },
+  { id: "card",   label: "💳 Card Payments (Korapay)", desc: "Enabled automatically — no setup needed. Sales are credited straight to your Evenova wallet; withdraw anytime from Wallet." },
   { id: "bank",   label: "🏦 Bank Transfer",   desc: "Attendees pay into Evenova's account and upload proof of transfer. Once confirmed, it's credited to your wallet." },
 ];
 
@@ -31,7 +31,7 @@ export default function PaymentSettings({ org, onSave, notify }) {
   const { mobile } = useMedia();
 
   const saved = org.paymentConfig || {};
-  const [provider, setProvider]       = useState(saved.provider === "paystack" || saved.provider === "flutterwave" ? "card" : (saved.provider || "none"));
+  const [provider, setProvider]       = useState(saved.provider === "paystack" || saved.provider === "flutterwave" || saved.provider === "korapay" ? "card" : (saved.provider || "none"));
   const [saving, setSaving]           = useState(false);
   const [wasSaved, setWasSaved]       = useState(false);
 

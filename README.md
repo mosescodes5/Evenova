@@ -20,7 +20,7 @@ evenova/
 │   │   │   ├── storage.js   # Persistent key-value store helpers
 │   │   │   ├── export.js    # CSV export (attendees, scan logs)
 │   │   │   ├── email.js     # Client-side email (Resend / SES / Brevo / mock)
-│   │   │   └── payment.js   # Paystack & Flutterwave checkout helpers
+│   │   │   └── payment.js   # Korapay checkout helper
 │   │   ├── data/
 │   │   │   └── seedData.js  # Demo events, organizers, tickets
 │   │   ├── hooks/
@@ -70,7 +70,7 @@ evenova/
 │   │   │   ├── auth.js      # POST /api/auth/login|register|logout
 │   │   │   ├── events.js    # CRUD /api/events
 │   │   │   ├── tickets.js   # POST /api/tickets/purchase|scan|manual
-│   │   │   └── webhooks.js  # POST /api/webhooks/paystack|flutterwave
+│   │   │   └── webhooks.js  # POST /api/webhooks/korapay
 │   │   ├── services/
 │   │   │   ├── emailService.js   # Send transactional emails
 │   │   │   └── ticketService.js  # Create & validate signed tickets
@@ -146,16 +146,12 @@ npm run dev:backend
 
 ### Payments
 
-**Paystack** (easiest for Nigeria):
-1. Sign up at [paystack.com](https://paystack.com)
-2. Copy your Test keys from Settings → API Keys
-3. Set `PAYSTACK_SECRET_KEY` and `PAYSTACK_PUBLIC_KEY` in `backend/.env`
-4. Set `PAYSTACK_PUBLIC_KEY` in `frontend/.env.local` too (used in `utils/payment.js`)
-
-**Flutterwave** (multi-currency):
-1. Sign up at [flutterwave.com](https://flutterwave.com)
-2. Get keys from Dashboard → Settings → API
-3. Set `FLW_SECRET_KEY`, `FLW_PUBLIC_KEY`, `FLW_SECRET_HASH`
+**Korapay**:
+1. Sign up at [korapay.com](https://korapay.com)
+2. Copy your Test keys from Settings → API Configuration
+3. Set `KORAPAY_SECRET_KEY` and `KORAPAY_PUBLIC_KEY` in `backend/.env`
+4. Set `VITE_KORAPAY_PUBLIC_KEY` in `frontend/.env.local` too (used in `utils/payment.js`)
+5. In the Korapay dashboard, set your webhook URL to `https://your-api-domain.com/api/webhooks/korapay` — used both to confirm ticket sales and to reconcile organizer payouts
 
 ### Ticket Signing Security
 
@@ -192,7 +188,7 @@ npm run db:seed
 - **`auth.js`** — real bcrypt-hashed passwords, looked up from the `users` table. `register` creates a `pending` organizer that needs manual approval before login succeeds (flip `status` to `approved` in `db:studio` or build an admin-approval endpoint).
 - **`events.js`** — full CRUD against `events`, `ticket_types`, and `gates`, with ownership checks (an organizer can only edit/cancel their own events; admins can touch any).
 - **`ticketService.js`** — `createTicket` now runs inside a DB transaction with a row lock on the ticket type, so concurrent buyers can never oversell a sold-out tier. `validateScan` checks real ticket status (rejects already-used, unpaid, refunded, or void tickets) and writes every attempt — admitted or rejected — to `scan_logs`.
-- **`paymentsService.js`** (new) — `tickets.js` now calls Paystack/Flutterwave's verify-transaction API server-side before issuing any paid ticket, and cross-checks the amount paid against the ticket type's price. The client can no longer mint a ticket just by claiming a payment succeeded.
+- **`paymentsService.js`** (new) — `tickets.js` now calls Korapay's verify-transaction API server-side before issuing any paid ticket, and cross-checks the amount paid against the ticket type's price. The client can no longer mint a ticket just by claiming a payment succeeded.
 - Free tickets (`priceKobo: 0`) and organizer-issued manual/comp tickets skip payment verification, as before.
 
 If you'd rather use MongoDB or a hosted option instead, the same patterns apply — swap `src/db/index.js` and `src/db/schema.js` for your driver of choice, and the route/service files only need their query calls updated, not their structure.
@@ -213,7 +209,7 @@ npm run build
 Set these environment variables in your hosting dashboard:
 ```
 VITE_API_URL=https://api.evenova.ng
-VITE_PAYSTACK_PUBLIC_KEY=pk_live_...
+VITE_KORAPAY_PUBLIC_KEY=pk_live_...
 ```
 
 ### Backend — Vercel (serverless)
@@ -235,7 +231,8 @@ DATABASE_URL=<your Supabase pooled connection string — see below>
 PGSSL=true
 JWT_SECRET=<openssl rand -hex 32>
 TICKET_SECRET=<openssl rand -hex 32>
-PAYSTACK_SECRET_KEY=...
+KORAPAY_SECRET_KEY=...
+KORAPAY_PUBLIC_KEY=...
 ALLOWED_ORIGINS=https://your-frontend.vercel.app
 ```
 
@@ -288,7 +285,7 @@ aws lambda update-function-code --function-name evenova-email --zip-file fileb:/
 - **Ticket signing** uses a DJB2 hash (`eId|tId|uId|SIG_HASH`). Tickets are signed at creation and verified offline at scan time — no network call required for gate validation.
 - **Offline scanning** is supported: `Scanner.jsx` validates QR codes locally using `utils/crypto.js`. Staff can cache event data and scan without internet.
 - **Email provider** is selected at runtime via `window._evEmailCfg` on the frontend and `config.email.provider` on the backend — no code change needed to switch providers.
-- **Payments**: Paystack and Flutterwave SDKs are loaded dynamically (no bundle bloat). Webhook verification is handled in `backend/src/routes/webhooks.js`.
+- **Payments**: the Korapay checkout SDK is loaded dynamically (no bundle bloat). Webhook verification (both ticket-sale and payout events) is handled in `backend/src/routes/webhooks.js`.
 
 ---
 

@@ -119,7 +119,7 @@ export default function AdminWithdrawals({ notify }) {
                   <div style={{ display: "flex", gap: 8, alignSelf: "flex-start" }}>
                     <Btn sz="sm" v="danger" onClick={() => reject(w)} disabled={busyId === w.id}><XCircle size={13}/>Reject</Btn>
                     <Btn sz="sm" onClick={() => approve(w)} disabled={busyId === w.id}>
-                      <CheckCircle size={13}/>{w.method === "bank" ? "Approve & Pay via Paystack" : "Approve"}
+                      <CheckCircle size={13}/>{w.method === "bank" ? "Approve & Pay via Korapay" : "Approve"}
                     </Btn>
                   </div>
                 )}

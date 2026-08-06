@@ -47,14 +47,9 @@ export const config = {
   },
 
   payments: {
-    paystack: {
-      secretKey: process.env.PAYSTACK_SECRET_KEY || "",
-      publicKey: process.env.PAYSTACK_PUBLIC_KEY || "",
-    },
-    flutterwave: {
-      secretKey:  process.env.FLW_SECRET_KEY   || "",
-      publicKey:  process.env.FLW_PUBLIC_KEY   || "",
-      secretHash: process.env.FLW_SECRET_HASH  || "",
+    korapay: {
+      secretKey: process.env.KORAPAY_SECRET_KEY || "",
+      publicKey: process.env.KORAPAY_PUBLIC_KEY || "",
     },
     // Evenova's own bank account — attendees paying by bank transfer send
     // money here, never to an organizer's own account. Admin confirms

@@ -58,7 +58,7 @@
 /**
  * @typedef {Object} TicketType
  * @property {string}   name
- * @property {number}   price  - In NGN (kobo on Paystack)
+ * @property {number}   price  - In NGN, stored internally as kobo (Korapay's API itself uses whole Naira)
  * @property {number}   qty
  * @property {string}   color
  * @property {string[]} perks

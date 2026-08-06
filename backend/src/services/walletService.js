@@ -58,4 +58,31 @@ async function debitForWithdrawal({ orgId, amountKobo, withdrawalId, note }) {
   return row;
 }
 
-export const walletService = { getBalanceKobo, listTransactions, creditForTicketSale, debitForWithdrawal };
+/**
+ * Reconciles a payout's final status when Korapay's transfer webhook
+ * arrives. The wallet is already debited at initiation time (see
+ * admin.js), so this doesn't touch the ledger — it only flips a "paid"
+ * withdrawal back to "approved" if Korapay ultimately reports the
+ * transfer as failed, so an admin knows it needs manual follow-up
+ * (e.g. pay out a different way) rather than treating it as settled.
+ */
+async function handlePayoutWebhook(event, data) {
+  if (!data?.reference) return;
+  const withdrawal = await db.query.withdrawals.findFirst({
+    where: eq(withdrawals.providerReference, data.reference),
+  });
+  if (!withdrawal) return;
+
+  if (event === "transfer.failed" && withdrawal.status === "paid") {
+    await db.update(withdrawals)
+      .set({
+        status: "approved",
+        adminNote: "Korapay reported this transfer as failed — needs manual follow-up.",
+      })
+      .where(eq(withdrawals.id, withdrawal.id));
+  }
+}
+
+export const walletService = {
+  getBalanceKobo, listTransactions, creditForTicketSale, debitForWithdrawal, handlePayoutWebhook,
+};

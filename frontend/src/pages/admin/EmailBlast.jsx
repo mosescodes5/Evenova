@@ -48,8 +48,6 @@ export default function EmailBlast({ org, events, user, notify }) {
   const [sesKey, setSesKey] = useState("");
   const [configSaving, setConfigSaving] = useState(false);
   const [payProvider, setPayProvider] = useState("none");
-  const [paystackKey, setPaystackKey] = useState("");
-  const [flwKey, setFlwKey] = useState("");
 
   /* ── Load history + backend status on mount ── */
   useEffect(() => {
@@ -213,7 +211,7 @@ Return ONLY the JSON array, no explanation.`;
   };
 
   const savePayConfig = () => {
-    window._evPayCfg = { provider: payProvider, paystackKey, flwKey };
+    window._evPayCfg = { provider: payProvider };
     notify("Payment settings saved!");
   };
 
@@ -614,7 +612,7 @@ Return ONLY the JSON array, no explanation.`;
               <Btn sz="sm" v="gold" onClick={savePayConfig}>Save</Btn>
             </div>
             <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
-              {[["none","🔓 Free Tickets"],["bank","🏦 Bank Transfer"],["paystack","💳 Paystack"],["flutterwave","🦋 Flutterwave"]].map(([id,label]) => (
+              {[["none","🔓 Free Tickets"],["bank","🏦 Bank Transfer"],["card","💳 Korapay"]].map(([id,label]) => (
                 <button key={id} onClick={()=>setPayProvider(id)}
                   style={{ padding:"8px 16px", borderRadius:10, border:`1px solid ${payProvider===id?T.gold:T.border}`,
                     background:payProvider===id?T.gold+"20":"transparent", color:payProvider===id?T.gold:T.muted, fontWeight:700, fontSize:13, cursor:"pointer" }}>
@@ -622,8 +620,11 @@ Return ONLY the JSON array, no explanation.`;
                 </button>
               ))}
             </div>
-            {payProvider==="paystack" && <Inp label="Paystack Public Key" value={paystackKey} onChange={setPaystackKey} placeholder="pk_live_xxxxxxxxxxxx"/>}
-            {payProvider==="flutterwave" && <Inp label="Flutterwave Public Key" value={flwKey} onChange={setFlwKey} placeholder="FLWPUBK-xxxxxxxxxxxx-X"/>}
+            {payProvider==="card" && (
+              <div style={{ padding:12, borderRadius:10, background:T.gold+"10", border:`1px solid ${T.gold+"30"}`, fontSize:12, color:T.muted, lineHeight:1.7 }}>
+                Nothing to configure here — Korapay is set up via the server's KORAPAY_SECRET_KEY / KORAPAY_PUBLIC_KEY env vars.
+              </div>
+            )}
             {payProvider==="bank" && (
               <div style={{ padding:12, borderRadius:10, background:T.gold+"10", border:`1px solid ${T.gold+"30"}`, fontSize:12, color:T.muted, lineHeight:1.7 }}>
                 Attendees see your bank details at checkout. After payment confirmation, issue tickets manually in Event Detail → Issue Ticket.

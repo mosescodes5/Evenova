@@ -3,23 +3,18 @@ import crypto from "crypto";
 import { config } from "../config.js";
 import { ticketService } from "../services/ticketService.js";
 import { emailService } from "../services/emailService.js";
+import { walletService } from "../services/walletService.js";
 
 const router = Router();
 
-// ── POST /api/webhooks/paystack ──────────────────────────────
-router.post("/paystack", async (req, res) => {
-  const signature = req.headers["x-paystack-signature"];
-  const rawBody   = req.body; // raw Buffer (see app.use above)
-
-  // Verify HMAC-SHA512 signature
-  const hash = crypto
-    .createHmac("sha512", config.payments.paystack.secretKey)
-    .update(rawBody)
-    .digest("hex");
-
-  if (hash !== signature) {
-    return res.status(401).json({ error: "Invalid signature" });
-  }
+// ── POST /api/webhooks/korapay ───────────────────────────────
+// Handles both pay-in events (charge.success — ticket checkout) and
+// payout events (transfer.success/transfer.failed — organizer withdrawals).
+// Korapay signs the payload with HMAC-SHA256 of ONLY the `data` object,
+// using your secret key, in the `x-korapay-signature` header.
+router.post("/korapay", async (req, res) => {
+  const signature = req.headers["x-korapay-signature"];
+  const rawBody = req.body; // raw Buffer (see app.use above)
 
   let event;
   try {
@@ -28,45 +23,35 @@ router.post("/paystack", async (req, res) => {
     return res.status(400).json({ error: "Invalid JSON" });
   }
 
-  // Acknowledge immediately — process async
-  res.sendStatus(200);
+  const hash = crypto
+    .createHmac("sha256", config.payments.korapay.secretKey)
+    .update(JSON.stringify(event.data))
+    .digest("hex");
 
-  if (event.event === "charge.success") {
-    const { reference, customer, metadata } = event.data;
-    try {
-      const pending = await ticketService.getPendingByPaymentRef(reference);
-      if (pending) {
-        const ticket = await ticketService.confirmPayment(pending.id, reference, "paystack");
-        await emailService.sendTicketEmail(ticket, customer.email);
-      }
-    } catch (err) {
-      console.error("[Paystack Webhook] error:", err);
-    }
-  }
-});
-
-// ── POST /api/webhooks/flutterwave ───────────────────────────
-router.post("/flutterwave", async (req, res) => {
-  const signature = req.headers["verif-hash"];
-
-  if (signature !== config.payments.flutterwave.secretHash) {
+  if (hash !== signature) {
     return res.status(401).json({ error: "Invalid signature" });
   }
 
-  const event = JSON.parse(req.body.toString());
+  // Acknowledge immediately — process async
   res.sendStatus(200);
 
-  if (event.status === "successful") {
-    const { tx_ref, customer } = event.data;
-    try {
-      const pending = await ticketService.getPendingByPaymentRef(tx_ref);
+  try {
+    if (event.event === "charge.success" && event.data?.status === "success") {
+      const { reference } = event.data;
+      const pending = await ticketService.getPendingByPaymentRef(reference);
       if (pending) {
-        const ticket = await ticketService.confirmPayment(pending.id, tx_ref, "flutterwave");
-        await emailService.sendTicketEmail(ticket, customer.email);
+        const ticket = await ticketService.confirmPayment(pending.id, reference, "korapay");
+        // Korapay's charge webhook doesn't include the payer's email —
+        // we already collected it from the attendee at checkout time.
+        await emailService.sendTicketEmail(ticket, ticket.holderEmail);
       }
-    } catch (err) {
-      console.error("[Flutterwave Webhook] error:", err);
     }
+
+    if (event.event === "transfer.success" || event.event === "transfer.failed") {
+      await walletService.handlePayoutWebhook(event.event, event.data);
+    }
+  } catch (err) {
+    console.error("[Korapay Webhook] error:", err);
   }
 });
 

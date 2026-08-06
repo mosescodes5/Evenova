@@ -17,8 +17,8 @@ router.get("/bank-details", (req, res) => {
 });
 
 // ── POST /api/payments/verify ──────────────────────────────────
-// Re-checks a payment reference directly against Paystack/Flutterwave's
-// API before the client is allowed to proceed with issuing a ticket, and
+// Re-checks a payment reference directly against Korapay's API before
+// the client is allowed to proceed with issuing a ticket, and
 // — if orgId/ticketPriceNaira are supplied — credits the organizer's
 // wallet for the sale. The credited amount is always computed server-side
 // from ticketPriceNaira/feeMode using our own fee formula; a client can't
@@ -31,7 +31,7 @@ router.get("/bank-details", (req, res) => {
 // directly with a made-up reference, getting a free ticket without paying.
 //
 // Body: {
-//   reference, provider: "paystack"|"flutterwave", expectedAmountKobo,
+//   reference, provider: "korapay", expectedAmountKobo,
 //   orgId?, ticketPriceNaira?, feeMode?, eventId?, eventTitle?, ticketId?,
 // }
 // Returns: { verified: boolean, reason?: string, email?: string, credited?: boolean }
