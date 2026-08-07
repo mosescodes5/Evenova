@@ -90,6 +90,13 @@ app.use((err, _req, res, _next) => {
   const status = err.status || err.statusCode || 500;
   res.status(status).json({
     error: config.isDev ? err.message : "Internal Server Error",
+    // PostgREST errors (from the legacy Supabase client) carry extra
+    // detail in .code/.details/.hint beyond .message — surface them in
+    // dev so misconfigurations (wrong SUPABASE_URL, bad table/column
+    // names, etc.) are diagnosable instead of just a bare message.
+    ...(config.isDev && err.hint && { hint: err.hint }),
+    ...(config.isDev && err.details && { details: err.details }),
+    ...(config.isDev && err.code && { code: err.code }),
     ...(config.isDev && { stack: err.stack }),
   });
 });

@@ -22,6 +22,8 @@ async function request(path, { method = "GET", body, token } = {}) {
     const err = new Error(data?.error || `Request failed (${res.status})`);
     err.status = res.status;
     err.code = data?.code;
+    err.hint = data?.hint;
+    err.details = data?.details;
     // A 401 here means the stored token is missing/invalid/expired — every
     // subsequent authenticated call will fail the same way until the user
     // logs in again. Broadcast it so App.jsx can log out + notify instead

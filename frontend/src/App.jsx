@@ -350,7 +350,7 @@ export default function App() {
       .catch(e => {
         console.error(e);
         setEvents(evs => evs.filter(x => x.id !== ev.id));
-        notify(`Failed to save event: ${e.message || "unknown error"}. Please try again.`, "error");
+        notify(`Failed to save event: ${e.message || "unknown error"}${e.hint ? ` (${e.hint})` : ""}. Please try again.`, "error");
       });
     nav("dashboard");
   };

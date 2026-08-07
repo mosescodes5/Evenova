@@ -1,0 +1,92 @@
+diff --git a/backend/src/db/supabase.js b/backend/src/db/supabase.js
+index 5f69a19..f64fdee 100644
+--- a/backend/src/db/supabase.js
++++ b/backend/src/db/supabase.js
+@@ -14,12 +14,41 @@ if (!config.supabase.url || !config.supabase.serviceRoleKey) {
+   );
+ }
+ 
++// supabase-js builds every request as `${SUPABASE_URL}/rest/v1/<table>`. A
++// trailing slash, or an accidentally-included `/rest/v1` (people sometimes
++// copy the URL straight out of the API request example in the dashboard
++// instead of the plain "Project URL" field), makes that concatenation
++// produce a path Supabase's REST layer rejects outright with "Invalid path
++// specified in request URL" — which otherwise looks identical to a real
++// data problem. Catch and normalize/warn about that here, once, at boot,
++// instead of it silently breaking every write.
++let supabaseUrl = config.supabase.url;
++if (supabaseUrl) {
++  if (/\/rest\/v1\/?$/.test(supabaseUrl)) {
++    console.error(
++      `[supabase] SUPABASE_URL ("${supabaseUrl}") looks like it includes "/rest/v1" — ` +
++      "it should be just the bare project URL, e.g. https://xxxxx.supabase.co " +
++      "(Supabase dashboard → Settings → API → Project URL). Stripping it automatically, " +
++      "but please fix the env var — this exact mistake causes \"Invalid path specified in request URL\" errors."
++    );
++    supabaseUrl = supabaseUrl.replace(/\/rest\/v1\/?$/, "");
++  }
++  if (supabaseUrl.endsWith("/")) supabaseUrl = supabaseUrl.slice(0, -1);
++  if (!/^https?:\/\//.test(supabaseUrl)) {
++    console.error(
++      `[supabase] SUPABASE_URL ("${supabaseUrl}") doesn't start with http(s):// — ` +
++      "this is very likely the wrong value (e.g. a Postgres connection string was pasted " +
++      "in by mistake instead of the project's API URL)."
++    );
++  }
++}
++
+ // IMPORTANT: createClient() throws synchronously if the URL is empty/invalid.
+ // Since this module is imported at server startup (not lazily, per-request),
+ // letting that throw escape used to crash the ENTIRE backend on boot —
+ // every route, including login/signup, which have nothing to do with these
+ // "legacy" tables. Guard it so a missing Supabase config only breaks the
+ // specific features that need it, not the whole app.
+-export const supabaseAdmin = (config.supabase.url && config.supabase.serviceRoleKey)
+-  ? createClient(config.supabase.url, config.supabase.serviceRoleKey, { auth: { persistSession: false } })
++export const supabaseAdmin = (supabaseUrl && config.supabase.serviceRoleKey)
++  ? createClient(supabaseUrl, config.supabase.serviceRoleKey, { auth: { persistSession: false } })
+   : null;
+diff --git a/backend/src/index.js b/backend/src/index.js
+index 1038d6c..4b57f35 100644
+--- a/backend/src/index.js
++++ b/backend/src/index.js
+@@ -90,6 +90,13 @@ app.use((err, _req, res, _next) => {
+   const status = err.status || err.statusCode || 500;
+   res.status(status).json({
+     error: config.isDev ? err.message : "Internal Server Error",
++    // PostgREST errors (from the legacy Supabase client) carry extra
++    // detail in .code/.details/.hint beyond .message — surface them in
++    // dev so misconfigurations (wrong SUPABASE_URL, bad table/column
++    // names, etc.) are diagnosable instead of just a bare message.
++    ...(config.isDev && err.hint && { hint: err.hint }),
++    ...(config.isDev && err.details && { details: err.details }),
++    ...(config.isDev && err.code && { code: err.code }),
+     ...(config.isDev && { stack: err.stack }),
+   });
+ });
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index 646810b..70f3a46 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -350,7 +350,7 @@ export default function App() {
+       .catch(e => {
+         console.error(e);
+         setEvents(evs => evs.filter(x => x.id !== ev.id));
+-        notify(`Failed to save event: ${e.message || "unknown error"}. Please try again.`, "error");
++        notify(`Failed to save event: ${e.message || "unknown error"}${e.hint ? ` (${e.hint})` : ""}. Please try again.`, "error");
+       });
+     nav("dashboard");
+   };
+diff --git a/frontend/src/utils/api.js b/frontend/src/utils/api.js
+index a73cafe..d76023d 100644
+--- a/frontend/src/utils/api.js
++++ b/frontend/src/utils/api.js
+@@ -22,6 +22,8 @@ async function request(path, { method = "GET", body, token } = {}) {
+     const err = new Error(data?.error || `Request failed (${res.status})`);
+     err.status = res.status;
+     err.code = data?.code;
++    err.hint = data?.hint;
++    err.details = data?.details;
+     // A 401 here means the stored token is missing/invalid/expired — every
+     // subsequent authenticated call will fail the same way until the user
+     // logs in again. Broadcast it so App.jsx can log out + notify instead
