@@ -13,9 +13,11 @@ import { Router } from "express";
 import { requireAuth, requireOrganizer } from "../middleware/auth.js";
 import { apiLimiter } from "../middleware/rateLimiter.js";
 import { supabaseAdmin } from "../db/supabase.js";
+import { requireSupabase } from "../middleware/requireSupabase.js";
 import { toEvent, fromEvent } from "../db/legacyMappers.js";
 
 const router = Router();
+router.use(requireSupabase);
 
 async function assertOwnsEvent(req, eventId) {
   const { data, error } = await supabaseAdmin
@@ -46,7 +48,8 @@ router.put("/", requireAuth, requireOrganizer, async (req, res, next) => {
   try {
     const ev = req.body;
     if (!ev?.id || !ev?.orgId || !ev?.title) {
-      return res.status(400).json({ error: "id, orgId and title are required" });
+      const missing = [!ev?.id && "id", !ev?.orgId && "orgId", !ev?.title && "title"].filter(Boolean).join(", ");
+      return res.status(400).json({ error: `Event is missing required field(s): ${missing}. Your organizer profile may not have finished loading — refresh the page and try again.` });
     }
     if (req.user.role !== "admin" && ev.orgId !== req.user.orgId) {
       return res.status(403).json({ error: "Cannot create/edit an event for another organizer" });

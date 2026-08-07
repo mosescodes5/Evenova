@@ -6,9 +6,11 @@
 import { Router } from "express";
 import { requireAuth, requireOrganizer } from "../middleware/auth.js";
 import { supabaseAdmin } from "../db/supabase.js";
+import { requireSupabase } from "../middleware/requireSupabase.js";
 import { toOrg, fromOrg } from "../db/legacyMappers.js";
 
 const router = Router();
+router.use(requireSupabase);
 const ALLOWED_FIELDS = ["name", "contactName", "phone", "idType", "idNumber", "expectedGuests", "paymentConfig", "payoutAccount"];
 
 // ── GET /api/org-profile ─ the caller's own full org record ───

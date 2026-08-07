@@ -5,10 +5,12 @@
 import { Router } from "express";
 import { requireAuth, requireOrganizer } from "../middleware/auth.js";
 import { supabaseAdmin } from "../db/supabase.js";
+import { requireSupabase } from "../middleware/requireSupabase.js";
 import { toOrg, fromOrg } from "../db/legacyMappers.js";
 import { genId } from "../utils/genId.js";
 
 const router = Router();
+router.use(requireSupabase);
 
 async function loadOrg(orgId) {
   const { data, error } = await supabaseAdmin

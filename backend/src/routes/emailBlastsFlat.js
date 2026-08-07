@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { requireAuth, requireOrganizer } from "../middleware/auth.js";
 import { supabaseAdmin } from "../db/supabase.js";
+import { requireSupabase } from "../middleware/requireSupabase.js";
 import { fromBlast } from "../db/legacyMappers.js";
 
 const router = Router();
+router.use(requireSupabase);
 
 // ── POST /api/email-blasts ─ record a sent email blast ─────────
 router.post("/", requireAuth, requireOrganizer, async (req, res, next) => {

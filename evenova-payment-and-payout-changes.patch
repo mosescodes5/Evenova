@@ -40,28 +40,130 @@ index 3dc56c5..1038d6c 100644
    const status = err.status || err.statusCode || 500;
    res.status(status).json({
      error: config.isDev ? err.message : "Internal Server Error",
+diff --git a/backend/src/middleware/requireSupabase.js b/backend/src/middleware/requireSupabase.js
+new file mode 100644
+index 0000000..e80277e
+--- /dev/null
++++ b/backend/src/middleware/requireSupabase.js
+@@ -0,0 +1,17 @@
++// backend/src/middleware/requireSupabase.js
++// Every "legacy flat" route (events, org profile, scan logs, email blasts,
++// team) reads/writes through supabaseAdmin, which is null when
++// SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY aren't set (see db/supabase.js).
++// Without this guard, the first `supabaseAdmin.from(...)` call throws a
++// bare "Cannot read properties of null (reading 'from')" straight to the
++// end user. Catch it here instead with a message that says what to fix.
++import { supabaseAdmin } from "../db/supabase.js";
++
++export function requireSupabase(_req, res, next) {
++  if (!supabaseAdmin) {
++    return res.status(503).json({
++      error: "Server isn't configured to save this yet — SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are missing on the backend. Set them and redeploy.",
++    });
++  }
++  next();
++}
+diff --git a/backend/src/routes/emailBlastsFlat.js b/backend/src/routes/emailBlastsFlat.js
+index 1c52940..8fad9ac 100644
+--- a/backend/src/routes/emailBlastsFlat.js
++++ b/backend/src/routes/emailBlastsFlat.js
+@@ -1,9 +1,11 @@
+ import { Router } from "express";
+ import { requireAuth, requireOrganizer } from "../middleware/auth.js";
+ import { supabaseAdmin } from "../db/supabase.js";
++import { requireSupabase } from "../middleware/requireSupabase.js";
+ import { fromBlast } from "../db/legacyMappers.js";
+ 
+ const router = Router();
++router.use(requireSupabase);
+ 
+ // ── POST /api/email-blasts ─ record a sent email blast ─────────
+ router.post("/", requireAuth, requireOrganizer, async (req, res, next) => {
+diff --git a/backend/src/routes/eventsFlat.js b/backend/src/routes/eventsFlat.js
+index 2f3832a..a87a172 100644
+--- a/backend/src/routes/eventsFlat.js
++++ b/backend/src/routes/eventsFlat.js
+@@ -13,9 +13,11 @@ import { Router } from "express";
+ import { requireAuth, requireOrganizer } from "../middleware/auth.js";
+ import { apiLimiter } from "../middleware/rateLimiter.js";
+ import { supabaseAdmin } from "../db/supabase.js";
++import { requireSupabase } from "../middleware/requireSupabase.js";
+ import { toEvent, fromEvent } from "../db/legacyMappers.js";
+ 
+ const router = Router();
++router.use(requireSupabase);
+ 
+ async function assertOwnsEvent(req, eventId) {
+   const { data, error } = await supabaseAdmin
+@@ -46,7 +48,8 @@ router.put("/", requireAuth, requireOrganizer, async (req, res, next) => {
+   try {
+     const ev = req.body;
+     if (!ev?.id || !ev?.orgId || !ev?.title) {
+-      return res.status(400).json({ error: "id, orgId and title are required" });
++      const missing = [!ev?.id && "id", !ev?.orgId && "orgId", !ev?.title && "title"].filter(Boolean).join(", ");
++      return res.status(400).json({ error: `Event is missing required field(s): ${missing}. Your organizer profile may not have finished loading — refresh the page and try again.` });
+     }
+     if (req.user.role !== "admin" && ev.orgId !== req.user.orgId) {
+       return res.status(403).json({ error: "Cannot create/edit an event for another organizer" });
 diff --git a/backend/src/routes/orgProfile.js b/backend/src/routes/orgProfile.js
-index 5e07e69..c8c8540 100644
+index 5e07e69..7b7c2d1 100644
 --- a/backend/src/routes/orgProfile.js
 +++ b/backend/src/routes/orgProfile.js
-@@ -1,5 +1,5 @@
+@@ -1,15 +1,17 @@
  // backend/src/routes/orgProfile.js
 -// Organizer account-settings updates (name, contact info, payment config).
 +// Organizer account-settings updates (name, contact info, payout account).
  // Deliberately does NOT accept `staff` (use /api/team) or `password`/
  // `verifyCode` (there is no working backend password-reset flow yet — see
  // note in the audit). Always scoped to req.user.orgId.
-@@ -9,7 +9,7 @@ import { supabaseAdmin } from "../db/supabase.js";
+ import { Router } from "express";
+ import { requireAuth, requireOrganizer } from "../middleware/auth.js";
+ import { supabaseAdmin } from "../db/supabase.js";
++import { requireSupabase } from "../middleware/requireSupabase.js";
  import { toOrg, fromOrg } from "../db/legacyMappers.js";
  
  const router = Router();
 -const ALLOWED_FIELDS = ["name", "contactName", "phone", "idType", "idNumber", "expectedGuests", "paymentConfig"];
++router.use(requireSupabase);
 +const ALLOWED_FIELDS = ["name", "contactName", "phone", "idType", "idNumber", "expectedGuests", "paymentConfig", "payoutAccount"];
  
  // ── GET /api/org-profile ─ the caller's own full org record ───
  router.get("/", requireAuth, requireOrganizer, async (req, res, next) => {
+diff --git a/backend/src/routes/scanLogsFlat.js b/backend/src/routes/scanLogsFlat.js
+index 635ca53..684ae85 100644
+--- a/backend/src/routes/scanLogsFlat.js
++++ b/backend/src/routes/scanLogsFlat.js
+@@ -1,9 +1,11 @@
+ import { Router } from "express";
+ import { requireAuth, requireOrganizer } from "../middleware/auth.js";
+ import { supabaseAdmin } from "../db/supabase.js";
++import { requireSupabase } from "../middleware/requireSupabase.js";
+ import { fromLog, toLog } from "../db/legacyMappers.js";
+ 
+ const router = Router();
++router.use(requireSupabase);
+ 
+ // ── GET /api/scan-logs/mine ─ caller's own event check-in logs ─
+ router.get("/mine", requireAuth, requireOrganizer, async (req, res, next) => {
+diff --git a/backend/src/routes/team.js b/backend/src/routes/team.js
+index dcfe2ae..4cf69d8 100644
+--- a/backend/src/routes/team.js
++++ b/backend/src/routes/team.js
+@@ -5,10 +5,12 @@
+ import { Router } from "express";
+ import { requireAuth, requireOrganizer } from "../middleware/auth.js";
+ import { supabaseAdmin } from "../db/supabase.js";
++import { requireSupabase } from "../middleware/requireSupabase.js";
+ import { toOrg, fromOrg } from "../db/legacyMappers.js";
+ import { genId } from "../utils/genId.js";
+ 
+ const router = Router();
++router.use(requireSupabase);
+ 
+ async function loadOrg(orgId) {
+   const { data, error } = await supabaseAdmin
 diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
-index 05edea0..a87cf14 100644
+index 05edea0..646810b 100644
 --- a/frontend/src/App.jsx
 +++ b/frontend/src/App.jsx
 @@ -45,7 +45,7 @@ import Scanner from "./pages/organizer/Scanner.jsx";
@@ -85,6 +187,15 @@ index 05edea0..a87cf14 100644
      nav(u.role === "admin" ? "admin" : u.role === "staff" ? "scanner" : "dashboard");
      notify(`Welcome back, ${u.name || u.email}!`);
    };
+@@ -533,7 +528,7 @@ export default function App() {
+           </div>
+         </div>
+       ),
+-      "create-event": <CreateEvent org={activeOrg} onSubmit={createEvent} onBack={() => nav("events")} />,
++      "create-event": <CreateEvent org={activeOrg} onSubmit={createEvent} onBack={() => nav("events")} notify={notify} />,
+       "event-detail": ev ? <EventDetail
+         event={ev}
+         onBack={() => nav("events")}
 @@ -556,8 +551,8 @@ export default function App() {
        "scan-log":    <ScanLog scanLogs={scanLogs} events={events} orgId={activeOrg.id} />,
        "sponsor-blast": <SponsorBlast org={activeOrg} user={user} notify={notify} />,
@@ -243,11 +354,15 @@ index 4b85972..17755a0 100644
                      <div>
                        {!isFree&&<PriceBreakdown price={selType?.price||0} feeMode={event.feeMode}/>}
 diff --git a/frontend/src/pages/organizer/CreateEvent.jsx b/frontend/src/pages/organizer/CreateEvent.jsx
-index 54f77e2..7a4446c 100644
+index 54f77e2..e20cec2 100644
 --- a/frontend/src/pages/organizer/CreateEvent.jsx
 +++ b/frontend/src/pages/organizer/CreateEvent.jsx
-@@ -9,7 +9,7 @@ import { DEF_FIELDS } from "../../data/seedData.js";
- export default function CreateEvent({ org, onSubmit, onBack }) {
+@@ -6,10 +6,10 @@ import { useMedia } from "../../hooks/useMedia.js";
+ import { genId, encodeTicket, verifyQR } from "../../utils/crypto.js";
+ import { DEF_FIELDS } from "../../data/seedData.js";
+ 
+-export default function CreateEvent({ org, onSubmit, onBack }) {
++export default function CreateEvent({ org, onSubmit, onBack, notify }) {
    const { mobile } = useMedia();
    const [step, setStep] = useState(1);
 -  const [det, setDet] = useState({ title:"", desc:"", date:"", time:"18:00", endTime:"22:00", venue:"", city:"Lagos", category:"Music", banner:"music", coverImage:"", feeMode:"pass_through" });
@@ -255,8 +370,14 @@ index 54f77e2..7a4446c 100644
    const [gates, setGates] = useState([
      { id:genId("GT"), name:"Main Entrance", color:"#7c3aed" },
      { id:genId("GT"), name:"VIP Gate",      color:"#f59e0b" },
-@@ -46,7 +46,7 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+@@ -44,9 +44,13 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+   const setField = (id,k,v) => setFields(f=>f.map(x=>x.id===id?{...x,[k]:v}:x));
+ 
    const submit = () => {
++    if (!org?.id) {
++      notify?.("Your organizer profile hasn't finished loading yet — please wait a moment and try again, or refresh the page.", "error");
++      return;
++    }
      const evId=genId("EVT");
      const gatesObj=Object.fromEntries(gates.map(g=>[g.id,{name:g.name,color:g.color}]));
 -    const typesObj=Object.fromEntries(types.map(t=>[t.id,{name:t.name,price:parseInt(t.price)||0,qty:parseInt(t.qty)||100,color:t.color,perks:t.perksStr.split(",").map(s=>s.trim()).filter(Boolean)}]));
@@ -264,7 +385,7 @@ index 54f77e2..7a4446c 100644
      const gKeys=Object.keys(gatesObj), tKeys=Object.keys(typesObj);
      const n=parseInt(count)||60;
      const tickets=Array.from({length:n},(_,i)=>{
-@@ -97,6 +97,23 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+@@ -97,6 +101,23 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
                <Inp label="City" value={det.city} onChange={setD("city")} options={["Lagos","Abuja","Port Harcourt","Kano","Ibadan","Enugu"].map(v=>({value:v,label:v}))}/>
                <Inp label="Tickets to Generate" type="number" value={count} onChange={setCount}/>
              </div>
@@ -288,7 +409,7 @@ index 54f77e2..7a4446c 100644
              <div>
                <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8}}>Event Image (used as the ticket background)</label>
                <div style={{display:"flex",alignItems:"center",gap:12}}>
-@@ -153,6 +170,12 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+@@ -153,6 +174,12 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
              <Btn sz="sm" onClick={addType} icon={<Plus size={13}/>}>Add Tier</Btn>
            </div>
            <div style={{marginBottom:22,padding:16,borderRadius:14,border:`1px solid #33415560`,background:"#7c3aed08"}}>
@@ -301,7 +422,7 @@ index 54f77e2..7a4446c 100644
              <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:10}}>Who pays the {SERVICE_CHARGE_PCT}% service fee?</label>
              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
                {[
-@@ -177,8 +200,10 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+@@ -177,8 +204,10 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
                  </p>
                );
              })()}
@@ -313,7 +434,7 @@ index 54f77e2..7a4446c 100644
              {types.map(t=>(
                <div key={t.id} style={{padding:18,borderRadius:14,border:`2px solid ${t.color+"40"}`,background:t.color+"08"}}>
                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
-@@ -187,7 +212,12 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+@@ -187,7 +216,12 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
                  </div>
                  <div className="g3 g2">
                    <Inp label="Name" value={t.name} onChange={v=>setType(t.id,"name",v)}/>

@@ -528,7 +528,7 @@ export default function App() {
           </div>
         </div>
       ),
-      "create-event": <CreateEvent org={activeOrg} onSubmit={createEvent} onBack={() => nav("events")} />,
+      "create-event": <CreateEvent org={activeOrg} onSubmit={createEvent} onBack={() => nav("events")} notify={notify} />,
       "event-detail": ev ? <EventDetail
         event={ev}
         onBack={() => nav("events")}

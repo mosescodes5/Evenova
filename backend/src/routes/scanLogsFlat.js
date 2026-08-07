@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { requireAuth, requireOrganizer } from "../middleware/auth.js";
 import { supabaseAdmin } from "../db/supabase.js";
+import { requireSupabase } from "../middleware/requireSupabase.js";
 import { fromLog, toLog } from "../db/legacyMappers.js";
 
 const router = Router();
+router.use(requireSupabase);
 
 // ── GET /api/scan-logs/mine ─ caller's own event check-in logs ─
 router.get("/mine", requireAuth, requireOrganizer, async (req, res, next) => {
