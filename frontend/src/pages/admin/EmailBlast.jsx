@@ -5,7 +5,7 @@ import { Bdg, Btn, Card, Inp, Modal } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
 import { KEYS, storGet, storSet } from "../../utils/storage.js";
 import { sendBlast, getEmailStatus, configureEmailProvider } from "../../utils/email.js";
-import { genId } from "../../utils/crypto.js";
+import { genId, genUUID } from "../../utils/crypto.js";
 
 export default function EmailBlast({ org, events, user, notify }) {
   const { mobile } = useMedia();
@@ -174,7 +174,7 @@ Return ONLY the JSON array, no explanation.`;
       setSendProgress(100);
       const isMocked = result.mocked;
       const blast = {
-        id: genId("BL"), ts: Date.now(), subject, recipients: emails.length,
+        id: genUUID(), ts: Date.now(), subject, recipients: emails.length,
         sent: result.sent, failed: result.failed, senderName, senderEmail,
         orgId: org?.id || user?.id, provider: result.provider, mocked: isMocked,
         preview: body.replace(/<[^>]+>/g, "").slice(0, 120),

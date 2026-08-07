@@ -3,7 +3,7 @@ import { CheckCircle, CheckSquare, ChevronLeft, ChevronRight, Edit, Filter, Imag
 import { GA, T, SERVICE_CHARGE_PCT, calcServiceCharge } from "../../styles/theme.js";
 import { Btn, Card, Inp } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
-import { genId, encodeTicket, verifyQR } from "../../utils/crypto.js";
+import { genId, genUUID, encodeTicket, verifyQR } from "../../utils/crypto.js";
 import { DEF_FIELDS } from "../../data/seedData.js";
 
 export default function CreateEvent({ org, onSubmit, onBack, notify }) {
@@ -53,7 +53,7 @@ export default function CreateEvent({ org, onSubmit, onBack, notify }) {
       setStep(1);
       return;
     }
-    const evId=genId("EVT");
+    const evId=genUUID();
     const gatesObj=Object.fromEntries(gates.map(g=>[g.id,{name:g.name,color:g.color}]));
     const typesObj=Object.fromEntries(types.map(t=>[t.id,{name:t.name,price:det.isFree?0:(parseInt(t.price)||0),qty:parseInt(t.qty)||100,color:t.color,perks:t.perksStr.split(",").map(s=>s.trim()).filter(Boolean)}]));
     const gKeys=Object.keys(gatesObj), tKeys=Object.keys(typesObj);

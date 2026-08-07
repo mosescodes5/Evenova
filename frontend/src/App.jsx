@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import { T, EVENT_BANNERS } from "./styles/theme.js";
 import StyleInjector from "./styles/StyleInjector.jsx";
-import { genId } from "./utils/crypto.js";
+import { genId, genUUID } from "./utils/crypto.js";
 import { DEFAULT_EVENTS, DEFAULT_ORGS } from "./data/seedData.js";
 import * as db from "./utils/db.js";
 import { KEYS, storGet, storSet } from "./utils/storage.js";
@@ -378,7 +378,7 @@ export default function App() {
   const handleScan = useCallback((ticket, status, reason, gateId, gate, ev, scanUser) => {
     if (!ev) return;
     const log = {
-      id: genId("LOG"), ts: Date.now(), evId: ev.id, evTitle: ev.title,
+      id: genUUID(), ts: Date.now(), evId: ev.id, evTitle: ev.title,
       ticketId: ticket?.id || "", holderName: ticket?.holderName || "",
       gateId, gateName: gate?.name || gateId,
       staffId: scanUser?.id || "", staffName: scanUser?.name || "",

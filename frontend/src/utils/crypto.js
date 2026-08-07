@@ -20,3 +20,18 @@ export function genId(pfx = "ID") {
   return pfx + Date.now().toString(36).slice(-4).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
 }
 
+// The Supabase "events" table's `id` column is a real `uuid` type, so it
+// rejects genId()'s short prefixed strings ("EVT...") outright with
+// "invalid input syntax for type uuid". Ticket/gate/ticket-type ids don't
+// need this — they live inside the `tickets`/`ticketTypes` jsonb columns,
+// not as their own typed DB columns — so only the top-level event id needs
+// to be a real UUID.
+export function genUUID() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  // Fallback for environments without crypto.randomUUID (older browsers).
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
