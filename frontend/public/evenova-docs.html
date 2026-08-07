@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Evenova — Product Documentation & Investor Brief</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --ink: #0a0a0f;
+    --paper: #f7f6f2;
+    --accent: #6b21e8;
+    --gold: #d4920a;
+    --muted: #6b6b7b;
+    --border: #e2e1db;
+    --surface: #eeecea;
+    --white: #ffffff;
+    --success: #15803d;
+    --danger: #b91c1c;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    min-height: 100vh;
+    background: var(--ink);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: -200px; right: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, #6b21e844 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    bottom: -100px; left: -100px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, #d4920a22 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .cover-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #6b21e820; border: 1px solid #6b21e840;
+    color: #a78bfa; padding: 6px 14px; border-radius: 100px;
+    font-size: 12px; font-weight: 500; letter-spacing: .08em;
+    text-transform: uppercase; margin-bottom: 40px; width: fit-content;
+  }
+  .cover h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(48px, 7vw, 88px);
+    font-weight: 800;
+    color: #f7f6f2;
+    line-height: 1.05;
+    margin-bottom: 24px;
+    letter-spacing: -.03em;
+  }
+  .cover h1 span { color: #a78bfa; }
+  .cover-sub {
+    font-size: 20px; color: #94a3b8; max-width: 540px;
+    line-height: 1.6; margin-bottom: 48px;
+  }
+  .cover-meta {
+    display: flex; gap: 40px; flex-wrap: wrap;
+  }
+  .cover-meta-item label {
+    display: block; font-size: 11px; text-transform: uppercase;
+    letter-spacing: .1em; color: #64748b; margin-bottom: 4px;
+  }
+  .cover-meta-item span {
+    font-family: 'Syne', sans-serif; font-size: 18px;
+    font-weight: 700; color: #f7f6f2;
+  }
+  .cover-divider {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #6b21e8, #d4920a, transparent);
+  }
+
+  /* ── Layout ── */
+  .container { max-width: 900px; margin: 0 auto; padding: 0 40px; }
+
+  /* ── Section ── */
+  .section { padding: 80px 0; border-bottom: 1px solid var(--border); }
+  .section:last-child { border-bottom: none; }
+
+  .section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .12em;
+    color: var(--accent); font-weight: 600; margin-bottom: 12px;
+  }
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 800; color: var(--ink);
+    line-height: 1.1; margin-bottom: 20px;
+    letter-spacing: -.02em;
+  }
+  .section-lead {
+    font-size: 17px; color: var(--muted);
+    max-width: 680px; line-height: 1.7; margin-bottom: 48px;
+  }
+
+  /* ── Feature Grid ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px;
+  }
+  .feature-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    transition: transform .2s, box-shadow .2s;
+  }
+  .feature-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(0,0,0,.08);
+  }
+  .feature-icon {
+    font-size: 28px; margin-bottom: 14px; display: block;
+  }
+  .feature-card h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px; font-weight: 700;
+    color: var(--ink); margin-bottom: 8px;
+  }
+  .feature-card p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* ── Highlight box ── */
+  .highlight {
+    background: var(--ink); color: var(--paper);
+    border-radius: 20px; padding: 48px;
+    margin: 40px 0;
+  }
+  .highlight h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 24px; font-weight: 800;
+    margin-bottom: 16px; color: #f7f6f2;
+  }
+  .highlight p { color: #94a3b8; line-height: 1.7; }
+  .highlight ul { color: #94a3b8; padding-left: 20px; margin-top: 12px; }
+  .highlight ul li { margin-bottom: 8px; line-height: 1.6; }
+  .highlight ul li strong { color: #a78bfa; }
+
+  /* ── Steps ── */
+  .steps { display: flex; flex-direction: column; gap: 0; }
+  .step {
+    display: flex; gap: 24px; padding: 28px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .step:last-child { border-bottom: none; }
+  .step-num {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--accent); color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 15px;
+    flex-shrink: 0; margin-top: 2px;
+  }
+  .step h4 {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px; font-weight: 700;
+    color: var(--ink); margin-bottom: 6px;
+  }
+  .step p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x: auto; margin: 32px 0; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--surface); font-family: 'Syne', sans-serif;
+    font-size: 12px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); padding: 12px 16px; text-align: left;
+    border-bottom: 2px solid var(--border);
+  }
+  td {
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    font-size: 14px; color: var(--ink);
+  }
+  tr:last-child td { border-bottom: none; }
+  .tag {
+    display: inline-block; padding: 3px 10px; border-radius: 100px;
+    font-size: 11px; font-weight: 700;
+  }
+  .tag-green { background: #dcfce7; color: #15803d; }
+  .tag-gold  { background: #fef3c7; color: #92400e; }
+  .tag-purple{ background: #ede9fe; color: #5b21b6; }
+  .tag-red   { background: #fee2e2; color: #991b1b; }
+
+  /* ── Stat row ── */
+  .stat-row { display: flex; gap: 20px; flex-wrap: wrap; margin: 32px 0; }
+  .stat {
+    flex: 1; min-width: 160px;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px 20px; text-align: center;
+  }
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 36px; font-weight: 800;
+    color: var(--accent); line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+
+  /* ── Quote ── */
+  .quote {
+    border-left: 4px solid var(--accent);
+    padding: 20px 28px; margin: 32px 0;
+    background: var(--white); border-radius: 0 12px 12px 0;
+  }
+  .quote p { font-size: 17px; font-style: italic; color: var(--ink); line-height: 1.7; }
+
+  /* ── CTA ── */
+  .cta-section {
+    background: linear-gradient(135deg, #6b21e8, #4c1d95);
+    border-radius: 24px; padding: 64px 48px;
+    text-align: center; margin: 48px 0;
+  }
+  .cta-section h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 36px; font-weight: 800;
+    color: white; margin-bottom: 16px;
+  }
+  .cta-section p { color: #c4b5fd; font-size: 17px; margin-bottom: 32px; }
+  .cta-section a {
+    display: inline-block;
+    background: white; color: #5b21b6;
+    padding: 14px 32px; border-radius: 12px;
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: 15px; text-decoration: none;
+    margin: 8px; transition: transform .15s;
+  }
+  .cta-section a:hover { transform: translateY(-2px); }
+  .cta-section a.outline {
+    background: transparent; color: white;
+    border: 2px solid #ffffff60;
+  }
+
+  /* ── TOC ── */
+  .toc {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px; margin: 48px 0;
+  }
+  .toc h3 {
+    font-family: 'Syne', sans-serif; font-size: 14px;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--muted); margin-bottom: 16px;
+  }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin-bottom: 8px; }
+  .toc a { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 500; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* ── Two col ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media(max-width: 640px) {
+    .two-col { grid-template-columns: 1fr; }
+    .cover { padding: 60px 28px; }
+    .container { padding: 0 20px; }
+    .section { padding: 56px 0; }
+    .cta-section { padding: 40px 24px; }
+    .highlight { padding: 32px 24px; }
+    .cover-meta { gap: 24px; }
+  }
+  @media print {
+    .cover { page-break-after: always; }
+    .section { page-break-inside: avoid; }
+  }
+
+  /* ── Footer ── */
+  .footer {
+    background: var(--ink); color: #475569;
+    padding: 40px 60px; font-size: 13px;
+    display: flex; justify-content: space-between;
+    align-items: center; flex-wrap: wrap; gap: 16px;
+  }
+  .footer span { color: #a78bfa; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ COVER ═══════════════ -->
+<div class="cover">
+  <div class="cover-badge">📋 Product Documentation · Investor Brief · 2025</div>
+  <h1>The Operating System<br/>for <span>Nigerian Events</span></h1>
+  <p class="cover-sub">Evenova is a full-stack event management platform purpose-built for African event organizers — from ticketing and QR scanning to live dashboards, email blasts, and revenue analytics.</p>
+  <div class="cover-meta">
+    <div class="cover-meta-item">
+      <label>Stage</label>
+      <span>Early Access</span>
+    </div>
+    <div class="cover-meta-item">
+      <label>Market</label>
+      <span>Nigeria · West Africa</span>
+    </div>
+    <div class="cover-meta-item">
+      <label>Contact</label>
+      <span>hello.evenova@gmail.com</span>
+    </div>
+    <div class="cover-meta-item">
+      <label>Version</label>
+      <span>1.0</span>
+    </div>
+  </div>
+  <div class="cover-divider"></div>
+</div>
+
+<!-- ═══════════════ BODY ═══════════════ -->
+<div class="container">
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Table of Contents</h3>
+    <ol>
+      <li><a href="#overview">Platform Overview</a></li>
+      <li><a href="#features">Full Feature List</a></li>
+      <li><a href="#roles">User Roles & Access</a></li>
+      <li><a href="#ticketing">Ticketing & QR System</a></li>
+      <li><a href="#scanning">Gate Scanning & PDA Support</a></li>
+      <li><a href="#email">Email Blast Engine</a></li>
+      <li><a href="#revenue">Revenue & Analytics</a></li>
+      <li><a href="#tech">Technology Stack</a></li>
+      <li><a href="#opportunity">Market Opportunity</a></li>
+      <li><a href="#contact">Contact & Partnership</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. OVERVIEW -->
+  <div class="section" id="overview">
+    <div class="section-label">01 · Overview</div>
+    <h2 class="section-title">What is Evenova?</h2>
+    <p class="section-lead">Evenova gives event organizers in Nigeria and across West Africa a complete, professional-grade platform to create, sell, manage, and scan tickets — with zero technical knowledge required.</p>
+
+    <div class="quote">
+      <p>"The Nigerian events industry generates billions of naira annually, yet most organizers still rely on WhatsApp, paper lists, and manual counting at the gate. Evenova changes that."</p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="stat-num">4</div><div class="stat-label">Core Modules</div></div>
+      <div class="stat"><div class="stat-num">3</div><div class="stat-label">User Roles</div></div>
+      <div class="stat"><div class="stat-num">∞</div><div class="stat-label">Ticket Tiers</div></div>
+      <div class="stat"><div class="stat-num">100%</div><div class="stat-label">Web-Based</div></div>
+    </div>
+
+    <p>Evenova runs entirely in the browser — no app download required. Organizers manage events from any laptop. Gate staff scan QR tickets from any phone or PDA device. Attendees register and receive their cryptographically signed ticket via email.</p>
+  </div>
+
+  <!-- 2. FEATURES -->
+  <div class="section" id="features">
+    <div class="section-label">02 · Features</div>
+    <h2 class="section-title">Everything in one platform</h2>
+    <p class="section-lead">Evenova replaces five separate tools with one cohesive system built specifically for the Nigerian event context.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="feature-icon">🎟</span>
+        <h3>Multi-Tier Ticketing</h3>
+        <p>Create unlimited ticket tiers (Early Bird, Regular, VIP, VVIP) with custom pricing, quantities, colors, and perks listed on the ticket.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📱</span>
+        <h3>QR Code Scanning</h3>
+        <p>Gate staff scan tickets using any smartphone camera or dedicated PDA scanner. Works fully offline and syncs when reconnected.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🔐</span>
+        <h3>Cryptographic Tickets</h3>
+        <p>Every ticket is cryptographically signed. Duplicates and fakes are detected instantly at the gate, eliminating fraud entirely.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🚪</span>
+        <h3>Multi-Gate Management</h3>
+        <p>Define multiple entry gates (Main, VIP, Press, etc.) with unique colors. Each gate only admits the ticket types assigned to it.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📊</span>
+        <h3>Live Dashboard</h3>
+        <p>Real-time check-in counter, capacity meters, revenue tickers, and gate-by-gate activity — all updating live during the event.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📧</span>
+        <h3>Email Blast Engine</h3>
+        <p>Upload an Excel list, AI-clean messy data, compose rich HTML emails, and blast thousands of attendees via Resend, Brevo, or AWS SES.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">💰</span>
+        <h3>Revenue Analytics</h3>
+        <p>Per-event and platform-wide revenue breakdown by ticket tier. Track check-in rates, revenue per organizer, and scan success rates.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">👥</span>
+        <h3>Team Management</h3>
+        <p>Organizers create staff accounts with role-based access. Assign scanners to specific gates. Remove access instantly after the event.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📝</span>
+        <h3>Custom Registration Forms</h3>
+        <p>Add custom fields to any event — T-shirt size, dietary requirement, company name, job title. All captured at ticket purchase.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">💳</span>
+        <h3>Payment Integration</h3>
+        <p>Connect Paystack or Flutterwave for instant online payment. Bank transfer mode for offline payers with manual ticket issuance.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📋</span>
+        <h3>Scan Log & Audit Trail</h3>
+        <p>Every scan attempt is logged with timestamp, gate, staff member, and outcome. Full audit trail for post-event reporting.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🛡</span>
+        <h3>Admin Control Panel</h3>
+        <p>Platform-level admin reviews organizer applications, approves accounts, monitors all events, and oversees platform-wide revenue.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📶</span>
+        <h3>Offline Mode</h3>
+        <p>Gate scanners can download a local ticket cache before the event. Scanning continues even when internet drops at the venue.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🤖</span>
+        <h3>AI Email Cleaning</h3>
+        <p>Upload any messy Excel file and Claude AI extracts, deduplicates, and fixes email addresses automatically — no manual cleanup needed.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🔔</span>
+        <h3>Email Verification</h3>
+        <p>New organizers receive a 6-digit verification code by email. Account auto-activates on confirmation — no admin bottleneck.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">☁️</span>
+        <h3>Cloud Database</h3>
+        <p>Powered by Supabase (PostgreSQL). All data persists in the cloud — no data loss, accessible from any device, anywhere.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. ROLES -->
+  <div class="section" id="roles">
+    <div class="section-label">03 · User Roles</div>
+    <h2 class="section-title">Three levels of access</h2>
+    <p class="section-lead">Evenova's role-based system ensures each user sees only what's relevant to their job.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Who</th>
+            <th>Access</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Platform Admin</strong></td>
+            <td>Evenova owner</td>
+            <td>Full platform view — approve/reject organizers, monitor all events, platform revenue, email blast to all, scan logs across all events</td>
+          </tr>
+          <tr>
+            <td><strong>Organizer</strong></td>
+            <td>Event company or individual</td>
+            <td>Create and manage their own events, issue tickets, manage their team, view their revenue, send email blasts to their attendees</td>
+          </tr>
+          <tr>
+            <td><strong>Staff / Scanner</strong></td>
+            <td>Gate staff, coordinators</td>
+            <td>QR scanner only — assigned to specific gates. Cannot access events, revenue, or settings. Credentials expire on removal.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="highlight">
+      <h3>🔐 Admin Access</h3>
+      <p>The platform admin account is accessed via a hidden keyboard shortcut (Ctrl+Shift+A) on the login screen — invisible to regular users. This keeps the admin interface completely separate from the organizer-facing product.</p>
+    </div>
+  </div>
+
+  <!-- 4. TICKETING -->
+  <div class="section" id="ticketing">
+    <div class="section-label">04 · Ticketing System</div>
+    <h2 class="section-title">Cryptographically signed tickets</h2>
+    <p class="section-lead">Every Evenova ticket carries a unique cryptographic signature. It cannot be duplicated, screenshotted, or transferred fraudulently.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div>
+          <h4>Organizer creates event</h4>
+          <p>Define ticket tiers (name, price, quantity, perks, color), entry gates, and a custom registration form with any fields needed.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div>
+          <h4>Attendee registers & pays</h4>
+          <p>Public event page collects registration data, processes payment via Paystack or Flutterwave, and instantly generates a signed QR ticket.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div>
+          <h4>Ticket delivered by email</h4>
+          <p>A branded HTML email containing the QR code, event details, ticket tier, and holder name is sent immediately to the attendee's inbox.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div>
+          <h4>Attendee arrives at the gate</h4>
+          <p>Attendee shows the QR code on their phone. The gate scanner reads it in under 1 second.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div>
+          <h4>System verifies & admits</h4>
+          <p>The system checks: valid signature, correct gate, not already scanned, correct ticket tier. Outcome displayed instantly — green for admitted, red for rejected.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap" style="margin-top:40px;">
+      <table>
+        <thead>
+          <tr><th>Scan Outcome</th><th>Meaning</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="tag tag-green">✅ Admitted</span></td><td>Valid ticket, first scan, correct gate</td><td>Let in</td></tr>
+          <tr><td><span class="tag tag-red">❌ Rejected</span></td><td>Invalid QR or tampered code</td><td>Deny entry</td></tr>
+          <tr><td><span class="tag tag-gold">⚠️ Duplicate</span></td><td>Ticket already scanned</td><td>Deny — possible transfer attempt</td></tr>
+          <tr><td><span class="tag tag-purple">🚪 Wrong Gate</span></td><td>Ticket valid but wrong entrance</td><td>Redirect to correct gate</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 5. SCANNING -->
+  <div class="section" id="scanning">
+    <div class="section-label">05 · Gate Scanning & Hardware</div>
+    <h2 class="section-title">Works on any device — including PDAs</h2>
+    <p class="section-lead">Evenova's scanner is a web app that runs on any device with a camera and browser. No app installation needed — staff just open a link.</p>
+
+    <div class="two-col">
+      <div class="feature-card">
+        <span class="feature-icon">📱</span>
+        <h3>Smartphones</h3>
+        <p>Any Android or iPhone with a browser. Staff log in, select their gate, and start scanning. Works on cheap ₦30,000 phones.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🖥</span>
+        <h3>PDAs / Barcode Scanners</h3>
+        <p>Dedicated PDA devices (Zebra, Honeywell, Urovo, etc.) with built-in QR scanners connect via browser. Faster, more durable, and ideal for high-volume gates.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📶</span>
+        <h3>Offline Mode</h3>
+        <p>Download a local ticket cache before the event. Scanning works even if venue WiFi fails. Logs sync automatically when connection returns.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">⚡</span>
+        <h3>Sub-second Verification</h3>
+        <p>QR decode and cryptographic verification happens locally in under 500ms. No server round-trip needed at the gate.</p>
+      </div>
+    </div>
+
+    <div class="highlight" style="margin-top:32px;">
+      <h3>💡 PDA Recommendation for Sponsors</h3>
+      <p>For professional event deployments, we recommend:</p>
+      <ul>
+        <li><strong>Urovo DT50</strong> — rugged Android PDA with integrated 2D QR scanner, widely available in Nigeria (~₦120,000)</li>
+        <li><strong>Zebra TC21</strong> — enterprise-grade, excellent for outdoor events (~₦180,000)</li>
+        <li><strong>Any Android tablet + external Bluetooth scanner</strong> — most affordable option (~₦60,000 total)</li>
+      </ul>
+      <p style="margin-top:12px;">All three work with Evenova out of the box via Chrome browser.</p>
+    </div>
+  </div>
+
+  <!-- 6. EMAIL BLAST -->
+  <div class="section" id="email">
+    <div class="section-label">06 · Email Blast Engine</div>
+    <h2 class="section-title">Mass email built for event marketing</h2>
+    <p class="section-lead">Evenova's built-in email blast tool lets organizers and the platform admin send thousands of personalised emails without any third-party marketing tool.</p>
+
+    <div class="feature-grid">
+      <div class="feature-card">
+        <span class="feature-icon">📊</span>
+        <h3>Excel Upload</h3>
+        <p>Upload any .xlsx or .csv file. Evenova auto-detects email columns and extracts addresses — even from messy, inconsistently formatted files.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🤖</span>
+        <h3>AI Cleaning</h3>
+        <p>One click sends raw Excel rows to Claude AI, which extracts, deduplicates, fixes typos (gmai.com → gmail.com), and returns a clean list.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🎨</span>
+        <h3>Rich HTML Composer</h3>
+        <p>Write emails in Rich, HTML, or Plain text mode. Use {name} tags for personalisation — each recipient gets their name in the greeting.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📬</span>
+        <h3>Multiple Providers</h3>
+        <p>Send via Resend.com (simplest), Brevo, or AWS SES. Free tiers available on all three. Switch providers without changing email templates.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">👥</span>
+        <h3>Import Attendees</h3>
+        <p>One click imports all registered attendees from any event directly into the recipient list — perfect for event follow-ups and announcements.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📈</span>
+        <h3>Send History</h3>
+        <p>Every blast is logged with subject, recipients, sent count, failed count, provider used, and a preview snippet for reference.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. REVENUE -->
+  <div class="section" id="revenue">
+    <div class="section-label">07 · Revenue & Analytics</div>
+    <h2 class="section-title">Know your numbers, always</h2>
+    <p class="section-lead">Evenova tracks revenue and attendance in real time, giving organizers and the platform admin instant visibility into performance.</p>
+
+    <div class="two-col">
+      <div>
+        <h3 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:16px;">Organizer Dashboard</h3>
+        <div class="steps">
+          <div class="step" style="padding:16px 0;">
+            <div class="step-num" style="background:#d4920a;font-size:12px;">₦</div>
+            <div><h4>Revenue per ticket tier</h4><p>See exactly how much Early Bird vs Regular vs VIP tickets earned.</p></div>
+          </div>
+          <div class="step" style="padding:16px 0;">
+            <div class="step-num" style="background:#d4920a;font-size:12px;">%</div>
+            <div><h4>Check-in rate</h4><p>Track what percentage of ticket holders actually showed up.</p></div>
+          </div>
+          <div class="step" style="padding:16px 0;">
+            <div class="step-num" style="background:#d4920a;font-size:12px;">📋</div>
+            <div><h4>Scan log</h4><p>Full audit trail of every gate scan with staff name, timestamp, and outcome.</p></div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:16px;">Admin Dashboard</h3>
+        <div class="steps">
+          <div class="step" style="padding:16px 0;">
+            <div class="step-num" style="font-size:12px;">🏢</div>
+            <div><h4>Organizer performance table</h4><p>All organizers ranked by revenue, events count, and tickets sold.</p></div>
+          </div>
+          <div class="step" style="padding:16px 0;">
+            <div class="step-num" style="font-size:12px;">📡</div>
+            <div><h4>Platform scan summary</h4><p>Admitted vs rejected vs duplicate scans across all events.</p></div>
+          </div>
+          <div class="step" style="padding:16px 0;">
+            <div class="step-num" style="font-size:12px;">🏆</div>
+            <div><h4>Top events by check-in rate</h4><p>See which events had the best turnout vs ticket sales ratio.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. TECH -->
+  <div class="section" id="tech">
+    <div class="section-label">08 · Technology</div>
+    <h2 class="section-title">Modern, scalable, low-cost infrastructure</h2>
+    <p class="section-lead">Evenova is built on proven open-source technology with zero licensing fees and a hosting cost well under ₦10,000/month to start.</p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>Technology</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Frontend</td><td>React + Vite</td><td>Fast, lightweight, works on slow Nigerian internet connections</td></tr>
+          <tr><td>Database</td><td>Supabase (PostgreSQL)</td><td>Free tier, real-time, no server management needed</td></tr>
+          <tr><td>Hosting</td><td>AWS Amplify / S3 + CloudFront</td><td>Global CDN, scales to millions of users, low cost</td></tr>
+          <tr><td>Email</td><td>Resend / Brevo / AWS SES</td><td>Multiple providers, free tiers, no lock-in</td></tr>
+          <tr><td>Payments</td><td>Paystack / Flutterwave</td><td>Nigerian-first payment processors, naira-native</td></tr>
+          <tr><td>AI</td><td>Claude (Anthropic)</td><td>Powers email list cleaning and smart data extraction</td></tr>
+          <tr><td>QR Crypto</td><td>Web Crypto API</td><td>Built into all browsers — no third-party dependency</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 9. OPPORTUNITY -->
+  <div class="section" id="opportunity">
+    <div class="section-label">09 · Market Opportunity</div>
+    <h2 class="section-title">A massive, underserved market</h2>
+    <p class="section-lead">Nigeria hosts thousands of ticketed events every year — concerts, tech conferences, fashion shows, weddings, corporate events — yet the infrastructure is broken.</p>
+
+    <div class="stat-row">
+      <div class="stat"><div class="stat-num">200M+</div><div class="stat-label">Population</div></div>
+      <div class="stat"><div class="stat-num">₦500B+</div><div class="stat-label">Events Industry (est.)</div></div>
+      <div class="stat"><div class="stat-num">~0</div><div class="stat-label">Homegrown event OS</div></div>
+    </div>
+
+    <div class="quote">
+      <p>"Most Nigerian event organizers use a mix of Google Forms, WhatsApp broadcasts, Canva tickets, and clipboard headcounts at the gate. Evenova replaces all of that."</p>
+    </div>
+
+    <div class="highlight">
+      <h3>Revenue Model</h3>
+      <ul>
+        <li><strong>SaaS subscription</strong> — Monthly/annual plan per organizer (₦15,000–₦80,000/month depending on tier)</li>
+        <li><strong>Per-ticket fee</strong> — Small platform fee on every paid ticket sold through Evenova</li>
+        <li><strong>White-label</strong> — License the platform to corporate event teams and agencies</li>
+        <li><strong>Hardware partnerships</strong> — Bundled PDA scanner packages for large venues and stadiums</li>
+        <li><strong>Sponsored placement</strong> — Featured listings on the public event discovery page</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 10. CTA -->
+  <div class="section" id="contact">
+    <div class="section-label">10 · Partnership & Contact</div>
+    <h2 class="section-title">Let's build this together</h2>
+    <p class="section-lead">Evenova is actively seeking pilot event partners, angel investors, and technology sponsors to accelerate growth across Nigeria and West Africa.</p>
+
+    <div class="two-col" style="margin-bottom:40px;">
+      <div class="feature-card">
+        <span class="feature-icon">🤝</span>
+        <h3>Sponsor Opportunities</h3>
+        <p>Brand visibility on tickets, emails, and the event discovery page. Co-branded scanner hardware for high-profile events. Speaking opportunities at Evenova launch events.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">📢</span>
+        <h3>Pilot Program</h3>
+        <p>First 10 organizers get Evenova free for 12 months. Full setup support, dedicated onboarding, and direct access to the founding team.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">💼</span>
+        <h3>Investment</h3>
+        <p>Seeking pre-seed investment to fund infrastructure, sales, and hardware procurement. Deck and financials available on request.</p>
+      </div>
+      <div class="feature-card">
+        <span class="feature-icon">🤙</span>
+        <h3>Meetings</h3>
+        <p>Available for in-person meetings in Lagos and virtual calls. Response within 24 hours guaranteed. No pitch deck required to start a conversation.</p>
+      </div>
+    </div>
+
+    <div class="cta-section">
+      <h2>Ready to talk?</h2>
+      <p>Whether you're an event organizer, investor, or sponsor — we'd love to hear from you.</p>
+      <a href="mailto:hello.evenova@gmail.com">📧 hello.evenova@gmail.com</a>
+      <a href="#" class="outline">📋 Request Full Pitch Deck</a>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <div>© 2025 <span>Evenova</span> · All rights reserved · hello.evenova@gmail.com</div>
+  <div>Confidential — For sponsor and investor review only</div>
+</div>
+
+</body>
+</html>

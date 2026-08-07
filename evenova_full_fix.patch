@@ -1,0 +1,1206 @@
+diff --git a/backend/package.json b/backend/package.json
+index 761f431..66a82da 100644
+--- a/backend/package.json
++++ b/backend/package.json
+@@ -24,6 +24,7 @@
+     "morgan": "^1.10.0",
+     "nodemailer": "^6.9.14",
+     "pg": "^8.13.1",
++    "@supabase/supabase-js": "^2.45.4",
+     "qrcode": "^1.5.4",
+     "uuid": "^10.0.0"
+   },
+diff --git a/backend/src/config.js b/backend/src/config.js
+index b81834c..f57293f 100644
+--- a/backend/src/config.js
++++ b/backend/src/config.js
+@@ -15,6 +15,14 @@ export const config = {
+     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+   },
+ 
++  // Service-role access to the "legacy" flat Supabase tables (events,
++  // organizers, scan_logs, email_blasts). NEVER expose the service-role key
++  // to the frontend — it bypasses Row Level Security entirely.
++  supabase: {
++    url:            process.env.SUPABASE_URL || "",
++    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || "",
++  },
++
+   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
+ 
+   db: {
+diff --git a/backend/src/db/legacyMappers.js b/backend/src/db/legacyMappers.js
+new file mode 100644
+index 0000000..ec20e1c
+--- /dev/null
++++ b/backend/src/db/legacyMappers.js
+@@ -0,0 +1,122 @@
++// backend/src/db/legacyMappers.js
++// Mirrors frontend/src/utils/db.js's toX/fromX functions exactly. These
++// write to the same "legacy" flat Supabase tables the frontend used to
++// write to directly — the mapping MUST stay identical on both sides or
++// writes from one side won't round-trip through reads on the other.
++
++export const fromOrg = (o) => ({
++  id:              o.id,
++  name:            o.name,
++  account_type:    o.accountType,
++  contact_name:    o.contactName,
++  phone:           o.phone,
++  id_type:         o.idType,
++  id_number:       o.idNumber,
++  expected_guests: o.expectedGuests,
++  status:          o.status,
++  staff:           o.staff          ?? [],
++  payment_config:  o.paymentConfig  ?? {},
++});
++
++export const toOrg = (r) => ({
++  id:             r.id,
++  name:           r.name,
++  accountType:    r.account_type,
++  contactName:    r.contact_name,
++  phone:          r.phone,
++  idType:         r.id_type,
++  idNumber:       r.id_number,
++  expectedGuests: r.expected_guests,
++  status:         r.status,
++  staff:          r.staff          ?? [],
++  paymentConfig:  r.payment_config ?? {},
++});
++
++export const fromEvent = (e) => ({
++  id:            e.id,
++  org_id:        e.orgId,
++  title:         e.title,
++  description:   e.desc,
++  date:          e.date,
++  time:          e.time,
++  end_time:      e.endTime,
++  venue:         e.venue,
++  city:          e.city,
++  category:      e.category,
++  status:        e.status,
++  featured:      e.featured,
++  banner:        e.banner,
++  checkin_count: e.checkinCount ?? 0,
++  gates:         e.gates        ?? {},
++  ticket_types:  e.ticketTypes  ?? {},
++  reg_fields:    e.regFields    ?? [],
++  tickets:       e.tickets      ?? [],
++});
++
++export const toEvent = (r) => ({
++  id:           r.id,
++  orgId:        r.org_id,
++  title:        r.title,
++  desc:         r.description,
++  date:         r.date,
++  time:         r.time,
++  endTime:      r.end_time,
++  venue:        r.venue,
++  city:         r.city,
++  category:     r.category,
++  status:       r.status,
++  featured:     r.featured,
++  banner:       r.banner,
++  checkinCount: r.checkin_count,
++  gates:        r.gates        ?? {},
++  ticketTypes:  r.ticket_types ?? {},
++  regFields:    r.reg_fields   ?? [],
++  tickets:      r.tickets      ?? [],
++});
++
++export const toLog = (r) => ({
++  id:             r.id,
++  ts:             r.ts,
++  evId:           r.ev_id,
++  evTitle:        r.ev_title,
++  ticketId:       r.ticket_id,
++  holderName:     r.holder_name,
++  gateId:         r.gate_id,
++  gateName:       r.gate_name,
++  staffId:        r.staff_id,
++  staffName:      r.staff_name,
++  ticketTypeName: r.ticket_type_name,
++  status:         r.status,
++  reason:         r.reason,
++});
++
++export const fromLog = (l) => ({
++  id:               l.id,
++  ts:               l.ts,
++  ev_id:            l.evId,
++  ev_title:         l.evTitle,
++  ticket_id:        l.ticketId,
++  holder_name:      l.holderName,
++  gate_id:          l.gateId,
++  gate_name:        l.gateName,
++  staff_id:         l.staffId,
++  staff_name:       l.staffName,
++  ticket_type_name: l.ticketTypeName,
++  status:           l.status,
++  reason:           l.reason,
++});
++
++export const fromBlast = (b) => ({
++  id:           b.id,
++  ts:           b.ts,
++  subject:      b.subject,
++  recipients:   b.recipients,
++  sent:         b.sent,
++  failed:       b.failed,
++  sender_name:  b.senderName,
++  sender_email: b.senderEmail,
++  org_id:       b.orgId,
++  provider:     b.provider,
++  mocked:       b.mocked,
++  preview:      b.preview,
++});
+diff --git a/backend/src/db/schema.js b/backend/src/db/schema.js
+index f73e672..8f26273 100644
+--- a/backend/src/db/schema.js
++++ b/backend/src/db/schema.js
+@@ -42,6 +42,8 @@ export const users = pgTable("users", {
+   emailVerified: boolean("email_verified").default(false).notNull(),
+   verificationToken: text("verification_token"),
+   verificationExpires: timestamp("verification_expires"),
++  resetCodeHash: text("reset_code_hash"),
++  resetExpires: timestamp("reset_expires"),
+   createdAt: timestamp("created_at").defaultNow().notNull(),
+ }, (t) => ({
+   emailIdx: uniqueIndex("users_email_idx").on(t.email),
+diff --git a/backend/src/db/supabase.js b/backend/src/db/supabase.js
+new file mode 100644
+index 0000000..6473364
+--- /dev/null
++++ b/backend/src/db/supabase.js
+@@ -0,0 +1,21 @@
++// backend/src/db/supabase.js
++// Service-role Supabase client for the "legacy" flat tables (events,
++// organizers, scan_logs, email_blasts) that the frontend used to write to
++// directly. The service-role key bypasses Row Level Security entirely, so
++// this client must NEVER be exposed to the frontend — it's only used here,
++// after requireAuth/requireOrganizer has already checked who's asking.
++import { createClient } from "@supabase/supabase-js";
++import { config } from "../config.js";
++
++if (!config.supabase.url || !config.supabase.serviceRoleKey) {
++  console.error(
++    "[supabase] Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY — " +
++    "team/event/scan-log/blast writes will fail. Set them in your backend's env."
++  );
++}
++
++export const supabaseAdmin = createClient(
++  config.supabase.url,
++  config.supabase.serviceRoleKey,
++  { auth: { persistSession: false } }
++);
+diff --git a/backend/src/index.js b/backend/src/index.js
+index 17c8387..3dc56c5 100644
+--- a/backend/src/index.js
++++ b/backend/src/index.js
+@@ -14,6 +14,11 @@ import whatsappRoutes  from "./routes/whatsapp.js";
+ import adminRoutes     from "./routes/admin.js";
+ import paymentsRoutes  from "./routes/payments.js";
+ import walletRoutes    from "./routes/wallet.js";
++import teamRoutes        from "./routes/team.js";
++import eventsFlatRoutes  from "./routes/eventsFlat.js";
++import scanLogsFlatRoutes  from "./routes/scanLogsFlat.js";
++import emailBlastsFlatRoutes from "./routes/emailBlastsFlat.js";
++import orgProfileRoutes  from "./routes/orgProfile.js";
+ 
+ const app = express();
+ 
+@@ -56,6 +61,11 @@ app.use("/api/whatsapp", whatsappRoutes);
+ app.use("/api/admin",    adminRoutes);
+ app.use("/api/payments", paymentsRoutes);
+ app.use("/api/wallet",   walletRoutes);
++app.use("/api/team",         teamRoutes);
++app.use("/api/events-flat",  eventsFlatRoutes);
++app.use("/api/scan-logs",    scanLogsFlatRoutes);
++app.use("/api/email-blasts", emailBlastsFlatRoutes);
++app.use("/api/org-profile",  orgProfileRoutes);
+ 
+ // ── 404 ─────────────────────────────────────────────────────
+ app.use((_req, res) => {
+diff --git a/backend/src/routes/auth.js b/backend/src/routes/auth.js
+index 268ca8b..9bed335 100644
+--- a/backend/src/routes/auth.js
++++ b/backend/src/routes/auth.js
+@@ -9,6 +9,7 @@ import { db, schema } from "../db/index.js";
+ import { emailService } from "../services/emailService.js";
+ 
+ const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
++const RESET_TTL_MS = 30 * 60 * 1000; // 30 minutes
+ 
+ function makeVerificationToken() {
+   return crypto.randomBytes(32).toString("hex");
+@@ -166,6 +167,59 @@ router.post("/resend-verification", authLimiter, async (req, res, next) => {
+   } catch (err) { next(err); }
+ });
+ 
++// ── POST /api/auth/forgot-password ───────────────────────────
++// Body: { email }
++// Always returns the same generic message — never reveals whether an
++// account exists. Stores only a bcrypt HASH of the code, never the code
++// itself, so a database read (or leaked backup) can't be used to reset
++// someone's password.
++router.post("/forgot-password", authLimiter, async (req, res, next) => {
++  try {
++    const { email } = req.body;
++    if (!email) return res.status(400).json({ error: "email required" });
++
++    const user = await db.query.users.findFirst({ where: eq(users.email, email.toLowerCase()) });
++    if (user) {
++      const code = String(Math.floor(100000 + Math.random() * 900000));
++      const resetCodeHash = await bcrypt.hash(code, 12);
++      const resetExpires = new Date(Date.now() + RESET_TTL_MS);
++
++      await db.update(users).set({ resetCodeHash, resetExpires }).where(eq(users.id, user.id));
++
++      emailService.sendPasswordResetEmail(user.email, user.name, code)
++        .catch(err => console.error("Failed to send password reset email:", err));
++    }
++
++    res.json({ message: "If that email is registered, a reset code has been sent." });
++  } catch (err) { next(err); }
++});
++
++// ── POST /api/auth/reset-password ────────────────────────────
++// Body: { email, code, newPassword }
++router.post("/reset-password", authLimiter, async (req, res, next) => {
++  try {
++    const { email, code, newPassword } = req.body;
++    if (!email || !code || !newPassword) return res.status(400).json({ error: "email, code and newPassword required" });
++    if (newPassword.length < 8) return res.status(400).json({ error: "password must be at least 8 characters" });
++
++    const user = await db.query.users.findFirst({ where: eq(users.email, email.toLowerCase()) });
++
++    // Same timing-attack-avoidance trick as login: always run bcrypt.compare.
++    const match = await bcrypt.compare(code, user?.resetCodeHash || "$2a$12$invalidsaltinvalidsaltinvalidsalt");
++    if (!user || !match) return res.status(400).json({ error: "Incorrect or expired code." });
++    if (!user.resetExpires || new Date(user.resetExpires) < new Date()) {
++      return res.status(400).json({ error: "This code has expired. Please request a new one." });
++    }
++
++    const passwordHash = await bcrypt.hash(newPassword, 12);
++    await db.update(users)
++      .set({ passwordHash, resetCodeHash: null, resetExpires: null })
++      .where(eq(users.id, user.id));
++
++    res.json({ message: "Password reset! You can now log in." });
++  } catch (err) { next(err); }
++});
++
+ // ── POST /api/auth/logout ────────────────────────────────────
+ // JWT is stateless; client discards token. This endpoint is for audit logging.
+ router.post("/logout", (req, res) => {
+diff --git a/backend/src/routes/emailBlastsFlat.js b/backend/src/routes/emailBlastsFlat.js
+new file mode 100644
+index 0000000..1c52940
+--- /dev/null
++++ b/backend/src/routes/emailBlastsFlat.js
+@@ -0,0 +1,24 @@
++import { Router } from "express";
++import { requireAuth, requireOrganizer } from "../middleware/auth.js";
++import { supabaseAdmin } from "../db/supabase.js";
++import { fromBlast } from "../db/legacyMappers.js";
++
++const router = Router();
++
++// ── POST /api/email-blasts ─ record a sent email blast ─────────
++router.post("/", requireAuth, requireOrganizer, async (req, res, next) => {
++  try {
++    const blast = req.body;
++    if (!blast?.id || !blast?.orgId) return res.status(400).json({ error: "id and orgId are required" });
++    if (req.user.role !== "admin" && blast.orgId !== req.user.orgId) {
++      return res.status(403).json({ error: "Cannot log a blast for another organizer" });
++    }
++
++    const { error } = await supabaseAdmin.from("email_blasts").insert(fromBlast(blast));
++    if (error) throw error;
++
++    res.status(201).json({ blast });
++  } catch (err) { next(err); }
++});
++
++export default router;
+diff --git a/backend/src/routes/eventsFlat.js b/backend/src/routes/eventsFlat.js
+new file mode 100644
+index 0000000..2f3832a
+--- /dev/null
++++ b/backend/src/routes/eventsFlat.js
+@@ -0,0 +1,91 @@
++// backend/src/routes/eventsFlat.js
++// Create/update events in the "legacy" flat Supabase table that the rest of
++// the frontend (dashboard, check-in, ticket editor, public event page) is
++// built around. This replaces the frontend's old direct-to-Supabase writes
++// with the same shape, just moved behind requireAuth/requireOrganizer so
++// the anon key doesn't need write access to these tables anymore.
++//
++// One upsert-style endpoint covers both "create" and "update" because the
++// frontend already always sends the full event object (see App.jsx's
++// createEvent/handleScan/onAddTicket, which all build a complete merged
++// event before saving) rather than partial patches.
++import { Router } from "express";
++import { requireAuth, requireOrganizer } from "../middleware/auth.js";
++import { apiLimiter } from "../middleware/rateLimiter.js";
++import { supabaseAdmin } from "../db/supabase.js";
++import { toEvent, fromEvent } from "../db/legacyMappers.js";
++
++const router = Router();
++
++async function assertOwnsEvent(req, eventId) {
++  const { data, error } = await supabaseAdmin
++    .from("events").select("org_id").eq("id", eventId).maybeSingle();
++  if (error) throw error;
++  if (!data) return; // doesn't exist yet — creation path, nothing to own yet
++  if (req.user.role !== "admin" && data.org_id !== req.user.orgId) {
++    throw Object.assign(new Error("Not your event"), { status: 403 });
++  }
++}
++
++// ── GET /api/events-flat/mine ─ caller's own events, full data ─
++// Includes the `tickets` column (attendee names/emails/phones) — only
++// returned to the organizer who owns these events, never to anon.
++router.get("/mine", requireAuth, requireOrganizer, async (req, res, next) => {
++  try {
++    if (!req.user.orgId) return res.status(403).json({ error: "Account has no organizer profile" });
++    let query = supabaseAdmin.from("events").select("*");
++    query = req.user.role === "admin" ? query : query.eq("org_id", req.user.orgId);
++    const { data, error } = await query;
++    if (error) throw error;
++    res.json({ events: (data ?? []).map(toEvent) });
++  } catch (err) { next(err); }
++});
++
++// ── PUT /api/events-flat ─ create or fully replace an event ───
++router.put("/", requireAuth, requireOrganizer, async (req, res, next) => {
++  try {
++    const ev = req.body;
++    if (!ev?.id || !ev?.orgId || !ev?.title) {
++      return res.status(400).json({ error: "id, orgId and title are required" });
++    }
++    if (req.user.role !== "admin" && ev.orgId !== req.user.orgId) {
++      return res.status(403).json({ error: "Cannot create/edit an event for another organizer" });
++    }
++    await assertOwnsEvent(req, ev.id);
++
++    const { error } = await supabaseAdmin.from("events").upsert(fromEvent(ev));
++    if (error) throw error;
++
++    res.json({ event: ev });
++  } catch (err) { next(err); }
++});
++
++export default router;
++
++// ── POST /api/events-flat/:id/register ─ public attendee registration ──
++// No auth — this is the one write real anonymous visitors need to make
++// (registering for/buying a ticket). Deliberately narrow: it only appends
++// one ticket to one event, rather than letting an anonymous caller upsert
++// an entire arbitrary event object the way the organizer route above does.
++router.post("/:id/register", apiLimiter, async (req, res, next) => {
++  try {
++    const { id } = req.params;
++    const { ticket } = req.body;
++    if (!ticket?.id || !ticket?.code) return res.status(400).json({ error: "A valid ticket is required" });
++
++    const { data: row, error: loadErr } = await supabaseAdmin
++      .from("events").select("*").eq("id", id).maybeSingle();
++    if (loadErr) throw loadErr;
++    if (!row) return res.status(404).json({ error: "Event not found" });
++    if (row.status !== "upcoming" && row.status !== "live") {
++      return res.status(400).json({ error: "This event isn't open for registration" });
++    }
++
++    const existing = toEvent(row);
++    const updated = { ...existing, tickets: [...existing.tickets, ticket] };
++    const { error: saveErr } = await supabaseAdmin.from("events").upsert(fromEvent(updated));
++    if (saveErr) throw saveErr;
++
++    res.status(201).json({ ticket });
++  } catch (err) { next(err); }
++});
+diff --git a/backend/src/routes/orgProfile.js b/backend/src/routes/orgProfile.js
+new file mode 100644
+index 0000000..5e07e69
+--- /dev/null
++++ b/backend/src/routes/orgProfile.js
+@@ -0,0 +1,47 @@
++// backend/src/routes/orgProfile.js
++// Organizer account-settings updates (name, contact info, payment config).
++// Deliberately does NOT accept `staff` (use /api/team) or `password`/
++// `verifyCode` (there is no working backend password-reset flow yet — see
++// note in the audit). Always scoped to req.user.orgId.
++import { Router } from "express";
++import { requireAuth, requireOrganizer } from "../middleware/auth.js";
++import { supabaseAdmin } from "../db/supabase.js";
++import { toOrg, fromOrg } from "../db/legacyMappers.js";
++
++const router = Router();
++const ALLOWED_FIELDS = ["name", "contactName", "phone", "idType", "idNumber", "expectedGuests", "paymentConfig"];
++
++// ── GET /api/org-profile ─ the caller's own full org record ───
++router.get("/", requireAuth, requireOrganizer, async (req, res, next) => {
++  try {
++    if (!req.user.orgId) return res.status(403).json({ error: "Account has no organizer profile" });
++    const { data, error } = await supabaseAdmin
++      .from("organizers").select("*").eq("id", req.user.orgId).maybeSingle();
++    if (error) throw error;
++    if (!data) return res.status(404).json({ error: "Organization not found" });
++    res.json({ organizer: toOrg(data) });
++  } catch (err) { next(err); }
++});
++
++router.put("/", requireAuth, requireOrganizer, async (req, res, next) => {
++  try {
++    if (!req.user.orgId) return res.status(403).json({ error: "Account has no organizer profile" });
++
++    const { data, error: loadErr } = await supabaseAdmin
++      .from("organizers").select("*").eq("id", req.user.orgId).maybeSingle();
++    if (loadErr) throw loadErr;
++    if (!data) return res.status(404).json({ error: "Organization not found" });
++
++    const current = toOrg(data);
++    const patch = {};
++    for (const f of ALLOWED_FIELDS) if (req.body[f] !== undefined) patch[f] = req.body[f];
++    const updated = { ...current, ...patch };
++
++    const { error: saveErr } = await supabaseAdmin.from("organizers").upsert(fromOrg(updated));
++    if (saveErr) throw saveErr;
++
++    res.json({ organizer: updated });
++  } catch (err) { next(err); }
++});
++
++export default router;
+diff --git a/backend/src/routes/scanLogsFlat.js b/backend/src/routes/scanLogsFlat.js
+new file mode 100644
+index 0000000..635ca53
+--- /dev/null
++++ b/backend/src/routes/scanLogsFlat.js
+@@ -0,0 +1,39 @@
++import { Router } from "express";
++import { requireAuth, requireOrganizer } from "../middleware/auth.js";
++import { supabaseAdmin } from "../db/supabase.js";
++import { fromLog, toLog } from "../db/legacyMappers.js";
++
++const router = Router();
++
++// ── GET /api/scan-logs/mine ─ caller's own event check-in logs ─
++router.get("/mine", requireAuth, requireOrganizer, async (req, res, next) => {
++  try {
++    if (!req.user.orgId) return res.status(403).json({ error: "Account has no organizer profile" });
++    // scan_logs has no org_id column of its own — filter via the events
++    // this organizer owns.
++    const { data: myEvents, error: evErr } = await supabaseAdmin
++      .from("events").select("id").eq("org_id", req.user.orgId);
++    if (evErr) throw evErr;
++    const ids = (myEvents ?? []).map(e => e.id);
++    if (ids.length === 0) return res.json({ logs: [] });
++
++    const { data, error } = await supabaseAdmin.from("scan_logs").select("*").in("ev_id", ids);
++    if (error) throw error;
++    res.json({ logs: (data ?? []).map(toLog) });
++  } catch (err) { next(err); }
++});
++
++// ── POST /api/scan-logs ─ record a check-in attempt ────────────
++router.post("/", requireAuth, requireOrganizer, async (req, res, next) => {
++  try {
++    const log = req.body;
++    if (!log?.id || !log?.evId) return res.status(400).json({ error: "id and evId are required" });
++
++    const { error } = await supabaseAdmin.from("scan_logs").insert(fromLog(log));
++    if (error) throw error;
++
++    res.status(201).json({ log });
++  } catch (err) { next(err); }
++});
++
++export default router;
+diff --git a/backend/src/routes/team.js b/backend/src/routes/team.js
+new file mode 100644
+index 0000000..dcfe2ae
+--- /dev/null
++++ b/backend/src/routes/team.js
+@@ -0,0 +1,66 @@
++// backend/src/routes/team.js
++// Add/remove/list organizer staff. Always scoped to req.user.orgId — never
++// trusts an orgId from the request body, so one organizer can't touch
++// another's staff list even if they guess/tamper with an id.
++import { Router } from "express";
++import { requireAuth, requireOrganizer } from "../middleware/auth.js";
++import { supabaseAdmin } from "../db/supabase.js";
++import { toOrg, fromOrg } from "../db/legacyMappers.js";
++import { genId } from "../utils/genId.js";
++
++const router = Router();
++
++async function loadOrg(orgId) {
++  const { data, error } = await supabaseAdmin
++    .from("organizers").select("*").eq("id", orgId).maybeSingle();
++  if (error) throw error;
++  if (!data) throw Object.assign(new Error("Organization not found"), { status: 404 });
++  return toOrg(data);
++}
++
++async function saveOrg(org) {
++  const { error } = await supabaseAdmin.from("organizers").upsert(fromOrg(org));
++  if (error) throw error;
++}
++
++// ── GET /api/team ─ list staff for the caller's own org ───────
++router.get("/", requireAuth, requireOrganizer, async (req, res, next) => {
++  try {
++    if (!req.user.orgId) return res.status(403).json({ error: "Account has no organizer profile" });
++    const org = await loadOrg(req.user.orgId);
++    res.json({ staff: org.staff });
++  } catch (err) { next(err); }
++});
++
++// ── POST /api/team ─ add a staff member ────────────────────────
++router.post("/", requireAuth, requireOrganizer, async (req, res, next) => {
++  try {
++    if (!req.user.orgId) return res.status(403).json({ error: "Account has no organizer profile" });
++    const { name, email, role = "staff" } = req.body;
++    if (!name || !email) return res.status(400).json({ error: "name and email are required" });
++
++    const org = await loadOrg(req.user.orgId);
++    if (org.staff.some(s => s.email?.toLowerCase() === email.toLowerCase())) {
++      return res.status(409).json({ error: "That email is already on your team" });
++    }
++
++    const member = { id: genId("STAFF"), name, email, role, addedAt: new Date().toISOString() };
++    const updated = { ...org, staff: [...org.staff, member] };
++    await saveOrg(updated);
++
++    res.status(201).json({ staff: updated.staff, member });
++  } catch (err) { next(err); }
++});
++
++// ── DELETE /api/team/:staffId ─ remove a staff member ──────────
++router.delete("/:staffId", requireAuth, requireOrganizer, async (req, res, next) => {
++  try {
++    if (!req.user.orgId) return res.status(403).json({ error: "Account has no organizer profile" });
++    const org = await loadOrg(req.user.orgId);
++    const updated = { ...org, staff: org.staff.filter(s => s.id !== req.params.staffId) };
++    await saveOrg(updated);
++    res.json({ staff: updated.staff });
++  } catch (err) { next(err); }
++});
++
++export default router;
+diff --git a/backend/src/services/emailService.js b/backend/src/services/emailService.js
+index 90f19b5..abde151 100644
+--- a/backend/src/services/emailService.js
++++ b/backend/src/services/emailService.js
+@@ -434,12 +434,44 @@ async function sendVerificationEmail(toEmail, toName, token) {
+   });
+ }
+ 
++function buildPasswordResetHtml(name, code) {
++  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
++<body style="font-family:'Helvetica Neue',Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px;">
++  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);">
++    <div style="background:linear-gradient(135deg,#7c3aed,#a855f7);padding:28px 32px;text-align:center;color:#fff;">
++      <h1 style="margin:0;font-size:22px;font-weight:800;">Reset your password</h1>
++    </div>
++    <div style="padding:28px 32px;">
++      <p style="font-size:14px;color:#333;line-height:1.6;">Hi ${name || "there"},</p>
++      <p style="font-size:14px;color:#333;line-height:1.6;">Use this code to reset your Evenova password:</p>
++      <div style="background:#f1f5f9;border-radius:16px;padding:24px;text-align:center;margin:24px 0;">
++        <p style="font-size:36px;font-weight:900;letter-spacing:10px;color:#1e293b;font-family:monospace;margin:0;">${code}</p>
++      </div>
++      <p style="font-size:12px;color:#999;line-height:1.6;">This code expires in 30 minutes. If you didn't request this, you can safely ignore this email — your password won't change.</p>
++    </div>
++    <div style="padding:16px 32px;background:#fafafa;text-align:center;font-size:12px;color:#999;border-top:1px solid #f0f0f0;">
++      Evenova · hello.evenova@gmail.com
++    </div>
++  </div>
++</body></html>`;
++}
++
++async function sendPasswordResetEmail(toEmail, toName, code) {
++  return send({
++    to: toEmail,
++    toName,
++    subject: "Your Evenova password reset code",
++    htmlBody: buildPasswordResetHtml(toName, code),
++  });
++}
++
+ // ─── Exports ──────────────────────────────────────────────────────────────────
+ export const emailService = {
+   send,
+   blast,
+   sendTicketEmail,
+   sendVerificationEmail,
++  sendPasswordResetEmail,
+   buildTicketHtml,
+   configure:   configureEmail,
+   getStatus:   getEmailStatus,
+diff --git a/backend/src/utils/genId.js b/backend/src/utils/genId.js
+new file mode 100644
+index 0000000..6f71546
+--- /dev/null
++++ b/backend/src/utils/genId.js
+@@ -0,0 +1,6 @@
++// backend/src/utils/genId.js
++// Same format as frontend/src/utils/crypto.js's genId(), so IDs generated
++// on either side look consistent in the flat Supabase tables.
++export function genId(pfx = "ID") {
++  return pfx + Date.now().toString(36).slice(-4).toUpperCase() + Math.random().toString(36).slice(2, 5).toUpperCase();
++}
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index 839cae7..05edea0 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -5,7 +5,6 @@ import StyleInjector from "./styles/StyleInjector.jsx";
+ import { genId } from "./utils/crypto.js";
+ import { DEFAULT_EVENTS, DEFAULT_ORGS } from "./data/seedData.js";
+ import * as db from "./utils/db.js";
+-import { sendEmail } from "./utils/email.js";
+ import { KEYS, storGet, storSet } from "./utils/storage.js";
+ import { api } from "./utils/api.js";
+ 
+@@ -87,7 +86,6 @@ export default function App() {
+   const [registerError, setRegisterError]   = useState("");
+   const [registerLoading, setRegisterLoading] = useState(false);
+   const [forgotLoading, setForgotLoading]     = useState(false);
+-  const [forgotTarget, setForgotTarget]       = useState(null);
+ 
+   // ── Load from Supabase on mount ───────────────────────────
+   useEffect(() => {
+@@ -180,6 +178,19 @@ export default function App() {
+     }
+   }, []);
+   const logout = () => { setUser(null); setView("landing"); storSet(KEYS.USER, null); storSet(KEYS.VIEW, "landing"); storSet(KEYS.TOKEN, null); window.history.pushState({}, "", "/"); };
++
++  // If any backend call comes back 401 (missing/expired/invalid token), log
++  // out and say so — rather than leaving wallet/team/admin screens quietly
++  // broken with nothing but a console error.
++  useEffect(() => {
++    const onUnauthorized = () => {
++      if (!user) return;
++      logout();
++      notify("Your session has expired — please log in again.", "error");
++    };
++    window.addEventListener("evenova:unauthorized", onUnauthorized);
++    return () => window.removeEventListener("evenova:unauthorized", onUnauthorized);
++  }, [user]);
+   const getOrg = useCallback(u => organizers.find(o => o.id === (u?.id || u?.orgId)), [organizers]);
+ 
+   // ── Registration with email verify ────────────────────────
+@@ -215,62 +226,33 @@ export default function App() {
+   };
+ 
+   // ── Forgot password ───────────────────────────────────────
++  // Goes through the backend now: a bcrypt-hashed code is stored on the
++  // real `users` row and the real `passwordHash` gets updated on reset.
++  // (The old version wrote a plaintext password onto the `organizers` row
++  // in Supabase, which had no connection to what login actually checks —
++  // resets never worked.)
+   const handleForgotSend = async (email, onSent) => {
+     setForgotLoading(true);
+-    const org = organizers.find(o => o.email === email);
+-    if (!org) {
+-      notify("If that email is registered, a reset code has been sent.", "info");
+-      setForgotLoading(false);
+-      onSent?.();
+-      return;
+-    }
+-    const code = String(Math.floor(100000 + Math.random() * 900000));
+-    setForgotTarget({ email, orgId: org.id, code });
+     try {
+-      await db.saveOrganizer({ ...org, verifyCode: code, verifyExpiry: Date.now() + 30 * 60 * 1000 });
+-      setOrgs(os => os.map(o => o.id === org.id ? { ...o, verifyCode: code, verifyExpiry: Date.now() + 30 * 60 * 1000 } : o));
+-    } catch (e) { console.error("save reset code failed", e); }
+-    try {
+-      await sendEmail({
+-        to: email,
+-        toName: org.contactName || org.name,
+-        subject: "Evenova Password Reset Code",
+-        htmlBody: `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;">
+-          <h2 style="font-size:22px;font-weight:800;margin-bottom:8px;">Reset your password</h2>
+-          <p style="color:#64748b;margin-bottom:24px;">Hi ${org.contactName || org.name}, use this code to reset your Evenova password:</p>
+-          <div style="background:#f1f5f9;border-radius:16px;padding:24px;text-align:center;margin-bottom:24px;">
+-            <p style="font-size:42px;font-weight:900;letter-spacing:12px;color:#1e293b;font-family:monospace;margin:0;">${code}</p>
+-          </div>
+-          <p style="color:#94a3b8;font-size:13px;">This code expires in 30 minutes. If you didn't request this, ignore this email.</p>
+-        </div>`,
+-        fromName: "Evenova",
+-        fromEmail: "hello.evenova@gmail.com",
+-      });
+-    } catch {
+-      console.log(`[Evenova] Password reset code for ${email}: ${code}`);
++      await api.forgotPassword(email);
++    } catch (e) {
++      console.error("forgot-password request failed", e);
+     }
++    // Always show the same generic message — the backend never reveals
++    // whether the account exists either.
+     setForgotLoading(false);
+     onSent?.();
+-    notify("Reset code sent! Check your email.", "info");
++    notify("If that email is registered, a reset code has been sent.", "info");
+   };
+ 
+   const handleForgotVerify = async (email, code, newPassword) => {
+     setForgotLoading(true);
+-    const org = organizers.find(o => o.email === email);
+-    if (!org) { notify("Account not found.", "error"); setForgotLoading(false); return; }
+-    const storedCode = forgotTarget?.code || org.verifyCode;
+-    const expiry     = org.verifyExpiry;
+-    if (!storedCode || storedCode !== code) { notify("Incorrect code. Try again.", "error"); setForgotLoading(false); return; }
+-    if (expiry && Date.now() > expiry) { notify("Code expired. Please request a new one.", "error"); setForgotLoading(false); return; }
+-    const updated = { ...org, password: newPassword, verifyCode: null, verifyExpiry: null };
+     try {
+-      await db.saveOrganizer(updated);
+-      setOrgs(os => os.map(o => o.id === org.id ? updated : o));
+-      setForgotTarget(null);
++      await api.resetPassword(email, code, newPassword);
+       notify("Password reset! You can now log in.");
+       nav("login");
+     } catch (e) {
+-      notify("Failed to update password: " + e.message, "error");
++      notify(e.message || "Failed to reset password.", "error");
+     } finally {
+       setForgotLoading(false);
+     }
+@@ -280,12 +262,36 @@ export default function App() {
+   const handleAccountUpdate = async (updates) => {
+     const activeOrg = organizers.find(o => o.id === user?.orgId);
+     if (!activeOrg) throw new Error("Organization not found");
+-    const updated = { ...activeOrg, ...updates };
+-    await db.saveOrganizer(updated);
++    const { organizer: updated } = await api.updateOrgProfile(updates, storGet(KEYS.TOKEN, null));
+     setOrgs(os => os.map(o => o.id === updated.id ? updated : o));
+   };
+ 
+   // ── Bank payment approve / reject ─────────────────────────
++  // Once logged in as an organizer, the public views used for anonymous
++  // browsing (no tickets/KYC fields/staff) aren't enough for their own
++  // dashboard — fetch the full versions of just their own org/events and
++  // merge them in over the public-view placeholders.
++  useEffect(() => {
++    if (!user?.orgId) return;
++    const token = storGet(KEYS.TOKEN, null);
++    if (!token) return;
++
++    api.getMyOrgProfile(token)
++      .then(({ organizer }) => setOrgs(os => os.map(o => o.id === organizer.id ? organizer : o)))
++      .catch(e => console.error("Failed to load full organizer profile", e));
++
++    api.getMyEvents(token)
++      .then(({ events: mine }) => setEvents(evs => {
++        const mineIds = new Set(mine.map(e => e.id));
++        return [...evs.filter(e => !mineIds.has(e.id)), ...mine];
++      }))
++      .catch(e => console.error("Failed to load full event data", e));
++
++    api.getMyScanLogs(token)
++      .then(({ logs }) => setScanLogs(logs))
++      .catch(e => console.error("Failed to load scan logs", e));
++  }, [user?.orgId]);
++
+   const handleLogin = u => {
+     setUser(u);
+     // Expose payment config globally so PublicEventPage can read it.
+@@ -343,31 +349,35 @@ export default function App() {
+ 
+   const createEvent = ev => {
+     setEvents(e => [...e, ev]);
+-    db.saveEvent(ev).catch(console.error);
+-    notify(`Event created with ${ev.tickets.length} signed tickets!`);
++    const token = storGet(KEYS.TOKEN, null);
++    api.saveEvent(ev, token)
++      .then(() => notify(`Event created with ${ev.tickets.length} signed tickets!`))
++      .catch(e => {
++        console.error(e);
++        setEvents(evs => evs.filter(x => x.id !== ev.id));
++        notify(`Failed to save event: ${e.message || "unknown error"}. Please try again.`, "error");
++      });
+     nav("dashboard");
+   };
+ 
+   const addStaff = (orgId, m) => {
+-    setOrgs(o => o.map(x => {
+-      if (x.id !== orgId) return x;
+-      const updated = { ...x, staff: [...x.staff, m] };
+-      db.saveOrganizer(updated)
+-        .then(() => notify("Staff account created"))
+-        .catch(e => { console.error(e); notify("Failed to save staff member: " + e.message, "error"); });
+-      return updated;
+-    }));
++    const token = storGet(KEYS.TOKEN, null);
++    api.addTeamMember(m, token)
++      .then(({ staff }) => {
++        setOrgs(o => o.map(x => x.id === orgId ? { ...x, staff } : x));
++        notify("Staff account created");
++      })
++      .catch(e => { console.error(e); notify("Failed to save staff member: " + e.message, "error"); });
+   };
+ 
+   const removeStaff = (orgId, sid) => {
+-    setOrgs(o => o.map(x => {
+-      if (x.id !== orgId) return x;
+-      const updated = { ...x, staff: x.staff.filter(s => s.id !== sid) };
+-      db.saveOrganizer(updated)
+-        .then(() => notify("Staff removed", "error"))
+-        .catch(e => { console.error(e); notify("Failed to remove staff member: " + e.message, "error"); });
+-      return updated;
+-    }));
++    const token = storGet(KEYS.TOKEN, null);
++    api.removeTeamMember(sid, token)
++      .then(({ staff }) => {
++        setOrgs(o => o.map(x => x.id === orgId ? { ...x, staff } : x));
++        notify("Staff removed");
++      })
++      .catch(e => { console.error(e); notify("Failed to remove staff member: " + e.message, "error"); });
+   };
+ 
+   const handleScan = useCallback((ticket, status, reason, gateId, gate, ev, scanUser) => {
+@@ -381,7 +391,11 @@ export default function App() {
+       status, reason: reason || "",
+     };
+     setScanLogs(l => [...l, log]);
+-    db.insertScanLog(log).catch(console.error);
++    const token = storGet(KEYS.TOKEN, null);
++    api.saveScanLog(log, token).catch(e => {
++      console.error(e);
++      notify(`Failed to save scan log: ${e.message || "unknown error"}`, "error");
++    });
+ 
+     if (status === "admitted" && ticket) {
+       const key = `${ev.id}:${ticket.id}`;
+@@ -393,7 +407,10 @@ export default function App() {
+           checkinCount: e.checkinCount + 1,
+           tickets: e.tickets.map(t => t.id === ticket.id ? { ...t, status: "used" } : t),
+         };
+-        db.saveEvent(updated).catch(console.error);
++        api.saveEvent(updated, token).catch(e => {
++          console.error(e);
++          notify(`Check-in didn't save: ${e.message || "unknown error"}`, "error");
++        });
+         return updated;
+       }));
+     }
+@@ -431,9 +448,12 @@ export default function App() {
+           setEvents(evs => evs.map(e => {
+             if (e.id !== evId) return e;
+             const updated = { ...e, tickets: [...e.tickets, tkt] };
+-            db.saveEvent(updated).catch(console.error);
+             return updated;
+           }));
++          api.registerForEvent(evId, tkt).catch(e => {
++            console.error(e);
++            notify("Your registration didn't save properly — please contact the organizer.", "error");
++          });
+         }} notify={notify} />
+     );
+     if (view === "register") return <Register onSubmit={handleRegister} onNav={v=>{setRegisterError("");nav(v);}} error={registerError} loading={registerLoading}/>;
+@@ -522,7 +542,10 @@ export default function App() {
+         onAddTicket={(evId, ticket) => setEvents(evs => evs.map(e => {
+           if (e.id !== evId) return e;
+           const updated = { ...e, tickets: [...e.tickets, ticket] };
+-          db.saveEvent(updated).catch(console.error);
++          api.saveEvent(updated, storGet(KEYS.TOKEN, null)).catch(e => {
++            console.error(e);
++            notify(`Failed to save ticket: ${e.message || "unknown error"}`, "error");
++          });
+           return updated;
+         }))}
+       /> : null,
+diff --git a/frontend/src/pages/ForgotPassword.jsx b/frontend/src/pages/ForgotPassword.jsx
+index 3e6e375..8252404 100644
+--- a/frontend/src/pages/ForgotPassword.jsx
++++ b/frontend/src/pages/ForgotPassword.jsx
+@@ -99,7 +99,7 @@ function StepReset({ email, onVerify, onResend, loading }) {
+     setErr("");
+     const entered = code.join("");
+     if (entered.length < 6) { setErr("Enter the full 6-digit code."); return; }
+-    if (pw.length < 6) { setErr("New password must be at least 6 characters."); return; }
++    if (pw.length < 8) { setErr("New password must be at least 8 characters."); return; }
+     if (pw !== pw2) { setErr("Passwords don't match."); return; }
+     onVerify(email, entered, pw);
+   };
+@@ -152,7 +152,7 @@ function StepReset({ email, onVerify, onResend, loading }) {
+             </label>
+             <div style={{ position:"relative", display:"flex", alignItems:"center" }}>
+               <input type={showPw ? "text" : "password"} value={pw} onChange={e => setPw(e.target.value)}
+-                placeholder="Min 6 characters" style={{ width:"100%", padding:"10px 44px 10px 14px",
++                placeholder="Min 8 characters" style={{ width:"100%", padding:"10px 44px 10px 14px",
+                   borderRadius:10, fontSize:14, color:T.text, background:T.surface,
+                   border:`1px solid ${T.border}`, fontFamily:"inherit", outline:"none" }}
+                 onFocus={e => e.target.style.borderColor = T.accent}
+diff --git a/frontend/src/utils/api.js b/frontend/src/utils/api.js
+index 7c462f0..a73cafe 100644
+--- a/frontend/src/utils/api.js
++++ b/frontend/src/utils/api.js
+@@ -22,6 +22,13 @@ async function request(path, { method = "GET", body, token } = {}) {
+     const err = new Error(data?.error || `Request failed (${res.status})`);
+     err.status = res.status;
+     err.code = data?.code;
++    // A 401 here means the stored token is missing/invalid/expired — every
++    // subsequent authenticated call will fail the same way until the user
++    // logs in again. Broadcast it so App.jsx can log out + notify instead
++    // of each caller failing quietly on its own (e.g. wallet screens).
++    if (res.status === 401 && typeof window !== "undefined" && path !== "/auth/login") {
++      window.dispatchEvent(new CustomEvent("evenova:unauthorized"));
++    }
+     throw err;
+   }
+   return data;
+@@ -33,6 +40,9 @@ export const api = {
+   verifyEmail: (token) => request("/auth/verify-email", { method: "POST", body: { token } }),
+   resendVerification: (email) => request("/auth/resend-verification", { method: "POST", body: { email } }),
+   logout: (token) => request("/auth/logout", { method: "POST", token }),
++  forgotPassword: (email) => request("/auth/forgot-password", { method: "POST", body: { email } }),
++  resetPassword: (email, code, newPassword) =>
++    request("/auth/reset-password", { method: "POST", body: { email, code, newPassword } }),
+ 
+   // Admin — reviewing organizer applications
+   listOrganizerApplications:   (token) => request("/admin/organizers", { token }),
+@@ -69,4 +79,24 @@ export const api = {
+     request("/admin/bank-transfers/confirm", { method: "POST", body: { eventId, ticketId }, token }),
+   rejectBankTransfer: (eventId, ticketId, reason, token) =>
+     request("/admin/bank-transfers/reject", { method: "POST", body: { eventId, ticketId, reason }, token }),
++
++  // Team — organizer staff management (goes through the backend now, not
++  // straight to Supabase, so it's scoped to the caller's own org)
++  listTeam:   (token) => request("/team", { token }),
++  addTeamMember:    (member, token) => request("/team", { method: "POST", body: member, token }),
++  removeTeamMember: (staffId, token) => request(`/team/${staffId}`, { method: "DELETE", token }),
++
++  // Events — create/update goes through the backend now (was direct-to-Supabase)
++  saveEvent: (event, token) => request("/events-flat", { method: "PUT", body: event, token }),
++  registerForEvent: (eventId, ticket) => request(`/events-flat/${eventId}/register`, { method: "POST", body: { ticket } }),
++  getMyEvents: (token) => request("/events-flat/mine", { token }),
++
++  // Scan logs / email blasts — same reasoning
++  saveScanLog: (log, token) => request("/scan-logs", { method: "POST", body: log, token }),
++  saveEmailBlast: (blast, token) => request("/email-blasts", { method: "POST", body: blast, token }),
++  getMyScanLogs: (token) => request("/scan-logs/mine", { token }),
++
++  // Organizer account/payment settings
++  updateOrgProfile: (updates, token) => request("/org-profile", { method: "PUT", body: updates, token }),
++  getMyOrgProfile: (token) => request("/org-profile", { token }),
+ };
+\ No newline at end of file
+diff --git a/frontend/src/utils/db.js b/frontend/src/utils/db.js
+index d379019..cb34cd6 100644
+--- a/frontend/src/utils/db.js
++++ b/frontend/src/utils/db.js
+@@ -136,8 +136,12 @@ const fromBlast = (b) => ({
+ });
+ 
+ /* ── Organizers ──────────────────────────────────────────── */
++// Reads the public-safe VIEW (no id_number/id_type/phone/contactName/staff)
++// — the anon key can no longer read the raw `organizers` table at all.
++// A logged-in organizer's own full record comes from api.getMyOrgProfile()
++// instead (see App.jsx).
+ export async function loadOrganizers() {
+-  const { data, error } = await supabase.from("organizers").select("*").order("created_at");
++  const { data, error } = await supabase.from("organizers_public").select("*").order("created_at");
+   if (error) throw error;
+   return (data ?? []).map(toOrg);
+ }
+@@ -163,8 +167,11 @@ export async function deleteOrganizer(id) {
+ }
+ 
+ /* ── Events ──────────────────────────────────────────────── */
++// Reads the public-safe VIEW (no `tickets` column — attendee names/emails/
++// phones). A logged-in organizer's own events with full attendee data come
++// from api.getMyEvents() instead (see App.jsx).
+ export async function loadEvents() {
+-  const { data, error } = await supabase.from("events").select("*");
++  const { data, error } = await supabase.from("events_public").select("*");
+   if (error) throw error;
+   return (data ?? []).map(toEvent);
+ }
+diff --git a/supabase_rls_lockdown.sql b/supabase_rls_lockdown.sql
+new file mode 100644
+index 0000000..abc6cbe
+--- /dev/null
++++ b/supabase_rls_lockdown.sql
+@@ -0,0 +1,64 @@
++-- ============================================================================
++-- Evenova — RLS lockdown + PII-safe public views
++-- ============================================================================
++-- Run AFTER deploying the updated backend (needs the new /events-flat/mine,
++-- /org-profile, /scan-logs/mine, /team endpoints) and frontend (needs the
++-- updated db.js reading from the *_public views below, and the App.jsx
++-- effect that merges in an organizer's own full data after login).
++-- Running this before deploying that code will break the app — the anon
++-- key's write access (and unrestricted table reads) get cut off here.
++-- ============================================================================
++
++alter table public.events     enable row level security;
++alter table public.organizers enable row level security;
++alter table public.scan_logs  enable row level security;
++-- email_blasts already has RLS enabled from earlier.
++
++drop policy if exists "anon read/write email_blasts" on public.email_blasts;
++
++-- No policies at all for anon/authenticated on the four base tables →
++-- deny by default. The backend's service-role client (backend/src/db/
++-- supabase.js) bypasses RLS entirely and is the only thing that can read
++-- or write these tables directly. Public/anonymous access goes through
++-- the views below instead, which simply don't select the sensitive
++-- columns — so even direct REST calls to the raw tables now return
++-- nothing for anon, while the views return the safe subset.
++
++
++-- ── Public-safe views ──────────────────────────────────────────────────────
++
++-- Every column except `tickets` (attendee names/emails/phones/custom form
++-- data). Public explore/event pages only ever needed the rest of this.
++create or replace view public.events_public as
++select id, org_id, title, description, category, date, time, end_time,
++       venue, city, status, featured, banner, checkin_count, gates,
++       ticket_types, reg_fields, created_at
++from public.events;
++
++-- Only what public pages actually display — no contact_name, phone,
++-- id_type, id_number (KYC/government ID), or staff (team emails).
++create or replace view public.organizers_public as
++select id, name, account_type, status, payment_config, expected_guests, created_at
++from public.organizers;
++
++grant select on public.events_public     to anon, authenticated;
++grant select on public.organizers_public to anon, authenticated;
++
++-- These views are owned by whichever role runs this script (normally the
++-- Supabase `postgres`/service role), so — per standard Postgres view
++-- semantics — they read the underlying tables with the *owner's*
++-- privileges, not the querying anon role's. That's what lets anon read
++-- through the view even though it now has zero direct policies on the
++-- base tables. If you ever recreate these views under a different role,
++-- re-run the `grant select` lines above.
++
++
++-- ── Sanity check ────────────────────────────────────────────────────────────
++-- After running this, confirm from a fresh (logged-out) browser tab that:
++--   1. The explore/event pages still load events and organizer names.
++--   2. Opening browser devtools → Network → the request to
++--      /rest/v1/events (raw table, not events_public) returns an empty
++--      array or a permissions error — NOT ticket data.
++--   3. Logged in as an organizer, the dashboard still shows attendee
++--      lists, check-in counts, and team members (via the new backend
++--      endpoints, not the anon key).
+diff --git a/supabase_schema_fix.sql b/supabase_schema_fix.sql
+new file mode 100644
+index 0000000..257276d
+--- /dev/null
++++ b/supabase_schema_fix.sql
+@@ -0,0 +1,106 @@
++-- ============================================================================
++-- Evenova — Supabase schema fix
++-- ============================================================================
++-- Root cause: frontend/src/utils/db.js writes events/organizers/scan_logs
++-- straight to Supabase using a flat, denormalized shape (banner, featured,
++-- checkin_count, gates, ticket_types, tickets as JSON columns on `events`;
++-- staff, payment_config as JSON columns on `organizers`). The live tables
++-- were created from backend/src/db/migrations (Drizzle), which uses a
++-- *different*, normalized shape for the same table names — so several
++-- columns the frontend needs simply don't exist. Every write fails with
++-- Postgres error PGRST204 ("Could not find the '...' column in the schema
++-- cache"), the failure is swallowed, and the event/staff member only ever
++-- existed in memory — hence it's gone after a refresh.
++--
++-- Run STEP 1 first and read the output before running STEP 2. STEP 2 is
++-- written to be safe to re-run (IF NOT EXISTS everywhere), but STEP 1 will
++-- tell you if your `id` columns are `uuid` — see the important note below.
++-- ============================================================================
++
++
++-- ── STEP 1 — Inspect what you actually have right now ─────────────────────
++select table_name, column_name, data_type
++from information_schema.columns
++where table_schema = 'public'
++  and table_name in ('events', 'organizers', 'scan_logs', 'email_blasts')
++order by table_name, ordinal_position;
++
++-- IMPORTANT: check the row where table_name = 'events' and column_name = 'id'.
++-- If data_type is "uuid", the app's own generated IDs (e.g. "EVK3F9A2B",
++-- produced by genId() in frontend/src/utils/crypto.js) are NOT valid UUIDs
++-- and inserts will keep failing even after Step 2, with a different error
++-- ("invalid input syntax for type uuid"). If that's the case, run this
++-- first (only if the table doesn't already have real UUID data you need to
++-- keep — check row count first!):
++--
++--   alter table public.events     alter column id type text;
++--   alter table public.organizers alter column id type text;
++--
++-- Same check applies to organizers.id.
++
++
++-- ── STEP 2 — Add the columns the frontend actually writes to ──────────────
++
++alter table public.events
++  add column if not exists banner        text,
++  add column if not exists featured      boolean default false,
++  add column if not exists checkin_count integer default 0,
++  add column if not exists gates         jsonb   default '{}'::jsonb,
++  add column if not exists ticket_types  jsonb   default '{}'::jsonb,
++  add column if not exists tickets       jsonb   default '[]'::jsonb;
++  -- reg_fields already exists per migration 0000_normal_gravity.sql — fine as-is.
++
++alter table public.organizers
++  add column if not exists staff          jsonb default '[]'::jsonb,
++  add column if not exists payment_config jsonb default '{}'::jsonb;
++  -- account_type / expected_guests already exist per migration 0002 — fine as-is.
++
++-- scan_logs: db.js expects columns this table doesn't have (it collides with
++-- Drizzle's own scan_logs table, which has different columns for the same
++-- name: event_id vs ev_id, no denormalized names, etc). Adding the frontend's
++-- expected columns alongside the existing ones (harmless — Drizzle's
++-- schema.js doesn't reference these, so its own queries are unaffected):
++alter table public.scan_logs
++  add column if not exists ts               bigint,
++  add column if not exists ev_id            text,
++  add column if not exists ev_title         text,
++  add column if not exists holder_name      text,
++  add column if not exists gate_name        text,
++  add column if not exists staff_name       text,
++  add column if not exists ticket_type_name text;
++  -- ticket_id, gate_id, staff_id, status, reason already exist.
++
++-- email_blasts doesn't exist at all in the Drizzle migrations — create it
++-- fresh so the "Email Blasts" feature (frontend/src/utils/db.js
++-- loadBlasts/insertBlast) has somewhere to write.
++create table if not exists public.email_blasts (
++  id            text primary key,
++  ts            bigint,
++  subject       text,
++  recipients    jsonb default '[]'::jsonb,
++  sent          integer default 0,
++  failed        integer default 0,
++  sender_name   text,
++  sender_email  text,
++  org_id        text,
++  provider      text,
++  mocked        boolean default false,
++  preview       text
++);
++
++
++-- ── STEP 3 — Row Level Security ────────────────────────────────────────────
++-- If these tables have RLS enabled (Supabase default for new tables) with
++-- no permissive policy, every write from the frontend's anon key will fail
++-- with a *different* error ("new row violates row-level security policy" /
++-- 401/403), even after Step 2. Check:
++--
++--   select tablename, rowsecurity from pg_tables
++--   where schemaname = 'public' and tablename in ('events','organizers','scan_logs','email_blasts');
++--
++-- If rowsecurity is true and you don't already have policies allowing your
++-- app's writes, either add appropriate policies or (only if you understand
++-- the tradeoff — anyone with your anon key can then write freely):
++--
++--   alter table public.events disable row level security;
++--   alter table public.organizers disable row level security;
