@@ -48,6 +48,11 @@ export default function CreateEvent({ org, onSubmit, onBack, notify }) {
       notify?.("Your organizer profile hasn't finished loading yet — please wait a moment and try again, or refresh the page.", "error");
       return;
     }
+    if (!det.title || !det.date || !det.venue) {
+      notify?.("Add an event title, date, and venue before creating the event.", "error");
+      setStep(1);
+      return;
+    }
     const evId=genId("EVT");
     const gatesObj=Object.fromEntries(gates.map(g=>[g.id,{name:g.name,color:g.color}]));
     const typesObj=Object.fromEntries(types.map(t=>[t.id,{name:t.name,price:det.isFree?0:(parseInt(t.price)||0),qty:parseInt(t.qty)||100,color:t.color,perks:t.perksStr.split(",").map(s=>s.trim()).filter(Boolean)}]));

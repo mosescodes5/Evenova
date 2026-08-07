@@ -49,6 +49,9 @@ router.put("/", requireAuth, requireOrganizer, async (req, res, next) => {
     const ev = req.body;
     if (!ev?.id || !ev?.orgId || !ev?.title) {
       const missing = [!ev?.id && "id", !ev?.orgId && "orgId", !ev?.title && "title"].filter(Boolean).join(", ");
+      console.warn("[events-flat PUT] rejected — missing field(s):", missing,
+        "| body keys received:", ev && typeof ev === "object" ? Object.keys(ev) : typeof ev,
+        "| user:", req.user?.id, req.user?.orgId);
       return res.status(400).json({ error: `Event is missing required field(s): ${missing}. Your organizer profile may not have finished loading — refresh the page and try again.` });
     }
     if (req.user.role !== "admin" && ev.orgId !== req.user.orgId) {
