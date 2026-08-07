@@ -114,7 +114,7 @@ export default function TeamManagement({ org, events, onAddStaff, onRemoveStaff,
                 <Card key={s.id} style={{padding:20}}>
                   <div style={{display:"flex",alignItems:"flex-start",gap:14,flexWrap:mobile?"wrap":"nowrap"}}>
                     <div style={{width:44,height:44,borderRadius:"50%",background:GA,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"white",flexShrink:0}}>
-                      {s.name.split(" ").map(n=>n[0]).join("").slice(0,2)}
+                      {(s.name || s.email || "?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}
                     </div>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4,flexWrap:"wrap"}}>
@@ -192,7 +192,7 @@ export default function TeamManagement({ org, events, onAddStaff, onRemoveStaff,
                           <td style={{padding:"12px 14px"}}>
                             <div style={{display:"flex",alignItems:"center",gap:8}}>
                               <div style={{width:30,height:30,borderRadius:"50%",background:GA,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"white",flexShrink:0}}>
-                                {s.name.split(" ").map(n=>n[0]).join("").slice(0,2)}
+                                {(s.name || s.email || "?").split(" ").map(n=>n[0]).join("").slice(0,2).toUpperCase()}
                               </div>
                               <span style={{fontSize:13,fontWeight:600,color:T.text}}>{s.name}</span>
                             </div>

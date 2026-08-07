@@ -46,7 +46,7 @@ export default function OrgDashboard({ org, events, onNav, notify }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:28,flexWrap:"wrap",gap:14}}>
         <div>
           <h1 className="outfit" style={{fontSize:26,fontWeight:800,color:T.text}}>
-            Welcome, {org.contactName.split(" ")[0]} 👋
+            Welcome, {(org.contactName || org.name || "there").split(" ")[0]} 👋
           </h1>
           <p style={{color:T.muted,marginTop:4}}>{org.name} · {org.staff.length}/{org.teamSize} staff accounts</p>
         </div>
