@@ -8,9 +8,10 @@ import { KEYS, storGet } from "../../utils/storage.js";
 
 const STATUS_COLOR = { pending: "gold", approved: "blue", paid: "green", rejected: "red" };
 
-export default function Wallet({ notify }) {
+export default function Wallet({ org, notify, onNav }) {
   const { mobile } = useMedia();
   const token = storGet(KEYS.TOKEN, null);
+  const savedPayout = org?.payoutAccount || null;
 
   const [balanceNaira, setBalanceNaira] = useState(0);
   const [txns, setTxns] = useState([]);
@@ -18,18 +19,32 @@ export default function Wallet({ notify }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
-  // withdrawal form state
+  // withdrawal form state — defaults to the organizer's saved payout account
+  // (set once in Payout Account settings) so bank details don't need to be
+  // retyped on every withdrawal.
   const [method, setMethod] = useState("bank");
   const [amount, setAmount] = useState("");
   const [banks, setBanks] = useState([]);
-  const [bankCode, setBankCode] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [accountName, setAccountName] = useState("");
+  const [bankCode, setBankCode] = useState(savedPayout?.bankCode || "");
+  const [accountNumber, setAccountNumber] = useState(savedPayout?.accountNumber || "");
+  const [accountName, setAccountName] = useState(savedPayout?.accountName || "");
   const [resolving, setResolving] = useState(false);
   const [cryptoAsset, setCryptoAsset] = useState("USDT");
   const [cryptoNetwork, setCryptoNetwork] = useState("TRC20");
   const [cryptoAddress, setCryptoAddress] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editingBank, setEditingBank] = useState(!savedPayout?.accountNumber);
+
+  // If the saved payout account loads in after the form is already open
+  // (org profile fetch resolves late), fill the fields in once.
+  useEffect(() => {
+    if (savedPayout?.accountNumber && !accountNumber) {
+      setBankCode(savedPayout.bankCode || "");
+      setAccountNumber(savedPayout.accountNumber || "");
+      setAccountName(savedPayout.accountName || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedPayout?.accountNumber]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -145,6 +160,18 @@ export default function Wallet({ notify }) {
           <Inp label="Amount (₦)" type="number" value={amount} onChange={setAmount} placeholder={`Up to ₦${balanceNaira.toLocaleString()}`} />
 
           {method === "bank" ? (
+            !editingBank && savedPayout?.accountNumber ? (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }}>
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{accountName}</p>
+                    <p style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{banks.find(b=>b.code===bankCode)?.name || savedPayout.bankName} · {accountNumber}</p>
+                  </div>
+                  <button onClick={() => setEditingBank(true)} style={{ background: "none", border: "none", color: T.accentL, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Change</button>
+                </div>
+                <p style={{ fontSize: 11, color: T.muted, marginTop: 8 }}>This is your saved payout account. Manage it anytime in <a href="#" onClick={e=>{e.preventDefault(); onNav?.("payout-settings");}} style={{ color: T.accentL }}>Payout Account</a> settings.</p>
+              </div>
+            ) : (
             <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
               <Inp label="Bank" value={bankCode} onChange={v => { setBankCode(v); setAccountName(""); }}
                 options={banks.map(b => ({ value: b.code, label: b.name }))} />
@@ -160,7 +187,11 @@ export default function Wallet({ notify }) {
               {!resolving && accountNumber?.length >= 10 && bankCode && !accountName && (
                 <Btn sz="sm" v="secondary" onClick={resolveAccount}>Verify account</Btn>
               )}
+              <p style={{ fontSize: 11, color: T.muted }}>
+                💡 Tip: save this in <a href="#" onClick={e=>{e.preventDefault(); onNav?.("payout-settings");}} style={{ color: T.accentL }}>Payout Account</a> settings so you don't have to re-enter it next time.
+              </p>
             </div>
+            )
           ) : (
             <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
               <Inp label="Asset" value={cryptoAsset} onChange={setCryptoAsset}

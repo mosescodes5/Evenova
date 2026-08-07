@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Calendar, CheckCircle, ChevronLeft, Info, Mail, MapPin, Upload } from "lucide-react";
+import { useState } from "react";
+import { Calendar, CheckCircle, ChevronLeft, Info, Mail, MapPin } from "lucide-react";
 import { EVENT_BANNERS, T, calcServiceCharge, calcTotalWithCharge, calcOrganizerEarning } from "../styles/theme.js";
 import { Bdg, Btn, Card, Inp, QRDisplay } from "../components/ui/index.jsx";
 import { useMedia } from "../hooks/useMedia.js";
@@ -72,20 +72,10 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
   const [submitting, setSubmitting] = useState(false);
   const [payStep, setPayStep] = useState("form");
   const [success, setSuccess] = useState(null);
-  const [receiptDataUrl, setReceiptDataUrl] = useState(null);
-  const [receiptName, setReceiptName] = useState("");
-  const [platformBank, setPlatformBank] = useState(null);
-
-  useEffect(() => {
-    if (payStep === "bank-receipt" && !platformBank) {
-      api.getPlatformBankDetails().then(setPlatformBank).catch(() => {});
-    }
-  }, [payStep, platformBank]);
 
   const selType = event.ticketTypes[selTypeId];
   const isFree = !selType?.price||selType.price===0;
   const setF = (id,v) => setFormData(f=>({...f,[id]:v}));
-  const getPayCfg = () => event.paymentConfig||window._evPayCfg||{};
 
   const issueTicket = async (payRef, payStatus="free", provider=null) => {
     if (payStatus==="paid") {
@@ -123,7 +113,7 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
       code:encodeTicket(event.id,tId,uId),holderName,holderEmail,holderPhone,
       status:payStatus==="pending"?"pending_payment":"unused",
       customData:formData,registeredAt:new Date().toISOString(),
-      paymentRef:payRef||null,paymentStatus:payStatus,receiptUrl:receiptDataUrl||null,
+      paymentRef:payRef||null,paymentStatus:payStatus,
       ticketPrice:selType?.price||0,
       feeMode:event.feeMode||"pass_through",
       platformFee:calcServiceCharge(selType?.price||0),
@@ -142,21 +132,13 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
     const missing = event.regFields.filter(f=>f.required&&!formData[f.id]);
     if (missing.length) { notify("Fill required: "+missing.map(f=>f.label).join(", "),"error"); return; }
     setSubmitting(true);
-    const cfg = getPayCfg();
-    const payProvider = cfg.provider||"none";
-    if (isFree||payProvider==="none") { await issueTicket(null,"free"); return; }
+    if (isFree) { await issueTicket(null,"free"); return; }
     const holderEmail=formData[event.regFields[1]?.id]||"";
     const holderName=formData[event.regFields[0]?.id]||"Attendee";
-    const holderPhone=formData[event.regFields[2]?.id]||"";
     const chargeAmount = calcTotalWithCharge(selType.price, event.feeMode);
-    if (payProvider==="card"||payProvider==="korapay") {
-      setSubmitting(false); setPayStep("paying");
-      try { await openKorapayCheckout({ email:holderEmail,name:holderName,amount:chargeAmount,eventTitle:event.title,onSuccess:async(ref)=>{setSubmitting(true);await issueTicket(ref,"paid","korapay")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
-      catch(e) { setPayStep("form");notify(e.message,"error"); }
-      return;
-    }
-    if (payProvider==="bank") { setSubmitting(false); setPayStep("bank-receipt"); return; }
-    await issueTicket(null,"free");
+    setSubmitting(false); setPayStep("paying");
+    try { await openKorapayCheckout({ email:holderEmail,name:holderName,amount:chargeAmount,eventTitle:event.title,onSuccess:async(ref)=>{setSubmitting(true);await issueTicket(ref,"paid","korapay")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
+    catch(e) { setPayStep("form");notify(e.message,"error"); }
   };
 
   if (success) {
@@ -239,7 +221,7 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
               <h3 style={{ fontSize:16,fontWeight:700,color:T.text,marginBottom:4 }}>Registration Form</h3>
               <p style={{ fontSize:13,color:"var(--ev-muted)",marginBottom:20 }}>Fill in your details to secure your spot.</p>
               <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
-                {payStep!=="bank-receipt"&&event.regFields.map(f=><CustomField key={f.id} field={f} value={formData[f.id]} onChange={v=>setF(f.id,v)}/>)}
+                {payStep!=="paying"&&event.regFields.map(f=><CustomField key={f.id} field={f} value={formData[f.id]} onChange={v=>setF(f.id,v)}/>)}
                 {payStep==="paying"&&(
                   <div style={{ padding:20,borderRadius:14,background:"var(--ev-accent)15",border:"1px solid var(--ev-accent)40",textAlign:"center" }}>
                     <div className="spin" style={{ width:28,height:28,border:"3px solid var(--ev-border)",borderTopColor:"var(--ev-accentL)",borderRadius:"50%",margin:"0 auto 10px" }}/>
@@ -247,53 +229,9 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
                     <p style={{ fontSize:12,color:"var(--ev-muted)",marginTop:4 }}>Do not close this page</p>
                   </div>
                 )}
-                {payStep==="bank-receipt"&&(()=>{
+                {payStep!=="paying"&&(()=>{
                   const total=calcTotalWithCharge(selType?.price||0, event.feeMode);
-                  return (
-                    <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
-                      <div style={{ padding:16,borderRadius:14,background:"var(--ev-gold)12",border:"1px solid var(--ev-gold)40" }}>
-                        <p style={{ fontSize:13,fontWeight:700,color:"var(--ev-gold)",marginBottom:10 }}>💳 Transfer to this account:</p>
-                        {!platformBank && <p style={{ fontSize:12,color:"var(--ev-muted)" }}>Loading account details…</p>}
-                        {platformBank && (
-                        <div style={{ display:"grid",gap:8 }}>
-                          {[["Bank",platformBank.bankName],["Account No.",platformBank.accountNumber],["Account Name",platformBank.accountName],[event.feeMode==="absorb"?"Amount":"Amount (incl. 5% fee)",`₦${total.toLocaleString()}`]].map(([k,v])=>(
-                            <div key={k} style={{ display:"flex",justifyContent:"space-between",fontSize:13 }}>
-                              <span style={{ color:"var(--ev-muted)" }}>{k}</span>
-                              <span style={{ color:T.text,fontWeight:700 }}>{v}</span>
-                            </div>
-                          ))}
-                        </div>
-                        )}
-                      </div>
-                      <div>
-                        <label style={{ fontSize:11,fontWeight:700,color:"var(--ev-muted)",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8 }}>Upload Transfer Receipt <span style={{ color:"var(--ev-danger)" }}>*</span></label>
-                        {!receiptDataUrl?(
-                          <label style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,padding:28,borderRadius:12,border:"2px dashed var(--ev-border)",cursor:"pointer",background:"var(--ev-surface)" }}
-                            onMouseEnter={e=>e.currentTarget.style.borderColor="var(--ev-accent)"}
-                            onMouseLeave={e=>e.currentTarget.style.borderColor="var(--ev-border)"}>
-                            <Upload size={24} color="var(--ev-muted)"/>
-                            <span style={{ fontSize:13,color:"var(--ev-muted)" }}>Click to upload screenshot or PDF</span>
-                            <input type="file" accept="image/*,application/pdf" style={{ display:"none" }} onChange={e=>{const file=e.target.files[0];if(!file)return;if(file.size>5*1024*1024){notify("File must be under 5 MB","error");return;}setReceiptName(file.name);const r=new FileReader();r.onload=ev=>setReceiptDataUrl(ev.target.result);r.readAsDataURL(file);}}/>
-                          </label>
-                        ):(
-                          <div style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:12,background:"var(--ev-success)12",border:"1px solid var(--ev-success)40" }}>
-                            <CheckCircle size={16} color="var(--ev-success)"/>
-                            <span style={{ fontSize:13,color:"var(--ev-success)",flex:1 }}>{receiptName}</span>
-                            <button onClick={()=>{setReceiptDataUrl(null);setReceiptName("");}} style={{ background:"none",border:"none",color:"var(--ev-muted)",cursor:"pointer" }}>✕</button>
-                          </div>
-                        )}
-                      </div>
-                      <Btn full sz="lg" disabled={!receiptDataUrl||submitting} onClick={async()=>{setSubmitting(true);await issueTicket("BANK_PENDING","pending");}}>
-                        {submitting?"Submitting…":"Submit Receipt & Wait for Confirmation"}
-                      </Btn>
-                      <button onClick={()=>{setPayStep("form");setReceiptDataUrl(null);setReceiptName("");}} style={{ background:"none",border:"none",color:"var(--ev-muted)",fontSize:12,cursor:"pointer",textAlign:"center",marginTop:-4 }}>← Back to form</button>
-                    </div>
-                  );
-                })()}
-                {payStep!=="paying"&&payStep!=="bank-receipt"&&(()=>{
-                  const cfg=getPayCfg();
-                  const total=calcTotalWithCharge(selType?.price||0, event.feeMode);
-                  const btnLabel=submitting?"Processing…":isFree?"Register Free":(cfg.provider==="card"||cfg.provider==="korapay")?`Pay ₦${total.toLocaleString()} with Korapay`:cfg.provider==="bank"?`Register · Pay ₦${total.toLocaleString()} via Transfer`:`Register · ₦${total.toLocaleString()}`;
+                  const btnLabel=submitting?"Processing…":isFree?"Register Free":`Pay ₦${total.toLocaleString()} with Korapay`;
                   return (
                     <div>
                       {!isFree&&<PriceBreakdown price={selType?.price||0} feeMode={event.feeMode}/>}

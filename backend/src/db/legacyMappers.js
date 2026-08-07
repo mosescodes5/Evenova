@@ -16,6 +16,7 @@ export const fromOrg = (o) => ({
   status:          o.status,
   staff:           o.staff          ?? [],
   payment_config:  o.paymentConfig  ?? {},
+  payout_account:  o.payoutAccount  ?? {},
 });
 
 export const toOrg = (r) => ({
@@ -30,6 +31,7 @@ export const toOrg = (r) => ({
   status:         r.status,
   staff:          r.staff          ?? [],
   paymentConfig:  r.payment_config ?? {},
+  payoutAccount:  r.payout_account ?? {},
 });
 
 export const fromEvent = (e) => ({

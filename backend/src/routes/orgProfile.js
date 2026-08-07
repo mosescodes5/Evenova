@@ -1,5 +1,5 @@
 // backend/src/routes/orgProfile.js
-// Organizer account-settings updates (name, contact info, payment config).
+// Organizer account-settings updates (name, contact info, payout account).
 // Deliberately does NOT accept `staff` (use /api/team) or `password`/
 // `verifyCode` (there is no working backend password-reset flow yet — see
 // note in the audit). Always scoped to req.user.orgId.
@@ -9,7 +9,7 @@ import { supabaseAdmin } from "../db/supabase.js";
 import { toOrg, fromOrg } from "../db/legacyMappers.js";
 
 const router = Router();
-const ALLOWED_FIELDS = ["name", "contactName", "phone", "idType", "idNumber", "expectedGuests", "paymentConfig"];
+const ALLOWED_FIELDS = ["name", "contactName", "phone", "idType", "idNumber", "expectedGuests", "paymentConfig", "payoutAccount"];
 
 // ── GET /api/org-profile ─ the caller's own full org record ───
 router.get("/", requireAuth, requireOrganizer, async (req, res, next) => {

@@ -45,7 +45,7 @@ import Scanner from "./pages/organizer/Scanner.jsx";
 import SponsorBlast from "./pages/organizer/SponsorBlast.jsx";
 import LiveDashboard from "./pages/organizer/LiveDashboard.jsx";
 import AccountSettings from "./pages/organizer/AccountSettings.jsx";
-import PaymentSettings from "./pages/organizer/PaymentSettings.jsx";
+import PayoutSettings from "./pages/organizer/PayoutSettings.jsx";
 
 /* ── URL routing helpers ─────────────────────────────────────
    The app is a single-page client-side "view" state machine, but we mirror
@@ -294,11 +294,6 @@ export default function App() {
 
   const handleLogin = u => {
     setUser(u);
-    // Expose payment config globally so PublicEventPage can read it.
-    // (organizers array is still loaded from Supabase for public/event data —
-    // only auth itself now comes from the API.)
-    const org = organizers.find(o => o.id === u?.orgId);
-    if (org?.paymentConfig) window._evPayCfg = org.paymentConfig;
     nav(u.role === "admin" ? "admin" : u.role === "staff" ? "scanner" : "dashboard");
     notify(`Welcome back, ${u.name || u.email}!`);
   };
@@ -556,8 +551,8 @@ export default function App() {
       "scan-log":    <ScanLog scanLogs={scanLogs} events={events} orgId={activeOrg.id} />,
       "sponsor-blast": <SponsorBlast org={activeOrg} user={user} notify={notify} />,
       "account-settings": <AccountSettings org={activeOrg} user={user} onSave={handleAccountUpdate} notify={notify}/>,
-      "payment-settings": <PaymentSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
-      "wallet": <Wallet notify={notify}/>,
+      "payout-settings": <PayoutSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
+      "wallet": <Wallet org={activeOrg} notify={notify} onNav={nav}/>,
     };
     const screen = screens[view] || screens.dashboard;
     if (user.status === "pending") {

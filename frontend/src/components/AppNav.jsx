@@ -10,7 +10,7 @@ export default function AppNav({ user, onNav, onLogout }) {
 
   const orgLinks = [
     ["dashboard","Dashboard",LayoutDashboard],["events","Events",Calendar],
-    ["revenue","Revenue",BarChart3],["wallet","Wallet",Wallet],["payment-settings","Payments",CreditCard],
+    ["revenue","Revenue",BarChart3],["wallet","Wallet",Wallet],["payout-settings","Payout Account",Landmark],
     ["team","Team",Users],["scanner","Scanner",Scan],["live","Live",Activity],
     ["scan-log","Scan Log",List],
   ];

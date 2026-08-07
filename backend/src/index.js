@@ -76,6 +76,17 @@ app.use((_req, res) => {
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
   console.error(err);
+
+  // Postgres 42P01 = "relation does not exist" — almost always means a
+  // migration hasn't been run against DATABASE_URL yet (see README →
+  // Database Setup). Surface this clearly instead of a generic 500 so it's
+  // obvious this is an ops/deploy step, not a code bug.
+  if (err.code === "42P01") {
+    return res.status(503).json({
+      error: "The database isn't fully set up yet — a required table is missing. Run `npm run db:migrate` against your DATABASE_URL, then try again.",
+    });
+  }
+
   const status = err.status || err.statusCode || 500;
   res.status(status).json({
     error: config.isDev ? err.message : "Internal Server Error",

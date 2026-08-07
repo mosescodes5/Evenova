@@ -9,7 +9,7 @@ import { DEF_FIELDS } from "../../data/seedData.js";
 export default function CreateEvent({ org, onSubmit, onBack }) {
   const { mobile } = useMedia();
   const [step, setStep] = useState(1);
-  const [det, setDet] = useState({ title:"", desc:"", date:"", time:"18:00", endTime:"22:00", venue:"", city:"Lagos", category:"Music", banner:"music", coverImage:"", feeMode:"pass_through" });
+  const [det, setDet] = useState({ title:"", desc:"", date:"", time:"18:00", endTime:"22:00", venue:"", city:"Lagos", category:"Music", banner:"music", coverImage:"", feeMode:"pass_through", isFree:false });
   const [gates, setGates] = useState([
     { id:genId("GT"), name:"Main Entrance", color:"#7c3aed" },
     { id:genId("GT"), name:"VIP Gate",      color:"#f59e0b" },
@@ -46,7 +46,7 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
   const submit = () => {
     const evId=genId("EVT");
     const gatesObj=Object.fromEntries(gates.map(g=>[g.id,{name:g.name,color:g.color}]));
-    const typesObj=Object.fromEntries(types.map(t=>[t.id,{name:t.name,price:parseInt(t.price)||0,qty:parseInt(t.qty)||100,color:t.color,perks:t.perksStr.split(",").map(s=>s.trim()).filter(Boolean)}]));
+    const typesObj=Object.fromEntries(types.map(t=>[t.id,{name:t.name,price:det.isFree?0:(parseInt(t.price)||0),qty:parseInt(t.qty)||100,color:t.color,perks:t.perksStr.split(",").map(s=>s.trim()).filter(Boolean)}]));
     const gKeys=Object.keys(gatesObj), tKeys=Object.keys(typesObj);
     const n=parseInt(count)||60;
     const tickets=Array.from({length:n},(_,i)=>{
@@ -96,6 +96,23 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
             <div className="g2">
               <Inp label="City" value={det.city} onChange={setD("city")} options={["Lagos","Abuja","Port Harcourt","Kano","Ibadan","Enugu"].map(v=>({value:v,label:v}))}/>
               <Inp label="Tickets to Generate" type="number" value={count} onChange={setCount}/>
+            </div>
+            <div>
+              <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8}}>Is this a free event?</label>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                {[
+                  [false,"Paid — sell tickets","Set prices per tier. Payments are collected automatically via Korapay."],
+                  [true,"Free — no payment required","Attendees register instantly with no checkout step."],
+                ].map(([val,label,desc])=>(
+                  <button key={String(val)} type="button" onClick={()=>setD("isFree")(val)}
+                    style={{flex:"1 1 220px",textAlign:"left",padding:"12px 14px",borderRadius:12,cursor:"pointer",
+                      border:`1.5px solid ${det.isFree===val?"#7c3aed":"#33415560"}`,
+                      background:det.isFree===val?"#7c3aed18":"transparent"}}>
+                    <p style={{fontSize:13,fontWeight:700,color:det.isFree===val?"#c4b5fd":T.text,marginBottom:3}}>{label}</p>
+                    <p style={{fontSize:11.5,color:"#94a3b8",lineHeight:1.5}}>{desc}</p>
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8}}>Event Image (used as the ticket background)</label>
@@ -153,6 +170,12 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
             <Btn sz="sm" onClick={addType} icon={<Plus size={13}/>}>Add Tier</Btn>
           </div>
           <div style={{marginBottom:22,padding:16,borderRadius:14,border:`1px solid #33415560`,background:"#7c3aed08"}}>
+            {det.isFree ? (
+              <p style={{fontSize:12.5,color:"#94a3b8",lineHeight:1.6}}>
+                🔓 This is a free event — ticket prices are locked at ₦0 and no payment step is shown to attendees.
+              </p>
+            ) : (
+            <>
             <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:10}}>Who pays the {SERVICE_CHARGE_PCT}% service fee?</label>
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
               {[
@@ -177,8 +200,10 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
                 </p>
               );
             })()}
+            </>
+            )}
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:20}}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
             {types.map(t=>(
               <div key={t.id} style={{padding:18,borderRadius:14,border:`2px solid ${t.color+"40"}`,background:t.color+"08"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
@@ -187,7 +212,12 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
                 </div>
                 <div className="g3 g2">
                   <Inp label="Name" value={t.name} onChange={v=>setType(t.id,"name",v)}/>
-                  <Inp label="Price (₦)" type="number" value={t.price} onChange={v=>setType(t.id,"price",v)}/>
+                  {det.isFree
+                    ? <div>
+                        <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8}}>Price</label>
+                        <div style={{padding:"10px 14px",borderRadius:10,border:"1px solid #33415560",color:T.success,fontWeight:700,fontSize:13}}>Free</div>
+                      </div>
+                    : <Inp label="Price (₦)" type="number" value={t.price} onChange={v=>setType(t.id,"price",v)}/>}
                   <Inp label="Qty" type="number" value={t.qty} onChange={v=>setType(t.id,"qty",v)}/>
                 </div>
                 <div style={{marginTop:10}}><Inp label="Perks (comma separated)" value={t.perksStr} onChange={v=>setType(t.id,"perksStr",v)} placeholder="Priority entry, Lounge access"/></div>

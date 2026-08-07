@@ -1,0 +1,683 @@
+diff --git a/backend/src/db/legacyMappers.js b/backend/src/db/legacyMappers.js
+index ec20e1c..fb6e697 100644
+--- a/backend/src/db/legacyMappers.js
++++ b/backend/src/db/legacyMappers.js
+@@ -16,6 +16,7 @@ export const fromOrg = (o) => ({
+   status:          o.status,
+   staff:           o.staff          ?? [],
+   payment_config:  o.paymentConfig  ?? {},
++  payout_account:  o.payoutAccount  ?? {},
+ });
+ 
+ export const toOrg = (r) => ({
+@@ -30,6 +31,7 @@ export const toOrg = (r) => ({
+   status:         r.status,
+   staff:          r.staff          ?? [],
+   paymentConfig:  r.payment_config ?? {},
++  payoutAccount:  r.payout_account ?? {},
+ });
+ 
+ export const fromEvent = (e) => ({
+diff --git a/backend/src/index.js b/backend/src/index.js
+index 3dc56c5..1038d6c 100644
+--- a/backend/src/index.js
++++ b/backend/src/index.js
+@@ -76,6 +76,17 @@ app.use((_req, res) => {
+ // eslint-disable-next-line no-unused-vars
+ app.use((err, _req, res, _next) => {
+   console.error(err);
++
++  // Postgres 42P01 = "relation does not exist" — almost always means a
++  // migration hasn't been run against DATABASE_URL yet (see README →
++  // Database Setup). Surface this clearly instead of a generic 500 so it's
++  // obvious this is an ops/deploy step, not a code bug.
++  if (err.code === "42P01") {
++    return res.status(503).json({
++      error: "The database isn't fully set up yet — a required table is missing. Run `npm run db:migrate` against your DATABASE_URL, then try again.",
++    });
++  }
++
+   const status = err.status || err.statusCode || 500;
+   res.status(status).json({
+     error: config.isDev ? err.message : "Internal Server Error",
+diff --git a/backend/src/routes/orgProfile.js b/backend/src/routes/orgProfile.js
+index 5e07e69..c8c8540 100644
+--- a/backend/src/routes/orgProfile.js
++++ b/backend/src/routes/orgProfile.js
+@@ -1,5 +1,5 @@
+ // backend/src/routes/orgProfile.js
+-// Organizer account-settings updates (name, contact info, payment config).
++// Organizer account-settings updates (name, contact info, payout account).
+ // Deliberately does NOT accept `staff` (use /api/team) or `password`/
+ // `verifyCode` (there is no working backend password-reset flow yet — see
+ // note in the audit). Always scoped to req.user.orgId.
+@@ -9,7 +9,7 @@ import { supabaseAdmin } from "../db/supabase.js";
+ import { toOrg, fromOrg } from "../db/legacyMappers.js";
+ 
+ const router = Router();
+-const ALLOWED_FIELDS = ["name", "contactName", "phone", "idType", "idNumber", "expectedGuests", "paymentConfig"];
++const ALLOWED_FIELDS = ["name", "contactName", "phone", "idType", "idNumber", "expectedGuests", "paymentConfig", "payoutAccount"];
+ 
+ // ── GET /api/org-profile ─ the caller's own full org record ───
+ router.get("/", requireAuth, requireOrganizer, async (req, res, next) => {
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index 05edea0..a87cf14 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -45,7 +45,7 @@ import Scanner from "./pages/organizer/Scanner.jsx";
+ import SponsorBlast from "./pages/organizer/SponsorBlast.jsx";
+ import LiveDashboard from "./pages/organizer/LiveDashboard.jsx";
+ import AccountSettings from "./pages/organizer/AccountSettings.jsx";
+-import PaymentSettings from "./pages/organizer/PaymentSettings.jsx";
++import PayoutSettings from "./pages/organizer/PayoutSettings.jsx";
+ 
+ /* ── URL routing helpers ─────────────────────────────────────
+    The app is a single-page client-side "view" state machine, but we mirror
+@@ -294,11 +294,6 @@ export default function App() {
+ 
+   const handleLogin = u => {
+     setUser(u);
+-    // Expose payment config globally so PublicEventPage can read it.
+-    // (organizers array is still loaded from Supabase for public/event data —
+-    // only auth itself now comes from the API.)
+-    const org = organizers.find(o => o.id === u?.orgId);
+-    if (org?.paymentConfig) window._evPayCfg = org.paymentConfig;
+     nav(u.role === "admin" ? "admin" : u.role === "staff" ? "scanner" : "dashboard");
+     notify(`Welcome back, ${u.name || u.email}!`);
+   };
+@@ -556,8 +551,8 @@ export default function App() {
+       "scan-log":    <ScanLog scanLogs={scanLogs} events={events} orgId={activeOrg.id} />,
+       "sponsor-blast": <SponsorBlast org={activeOrg} user={user} notify={notify} />,
+       "account-settings": <AccountSettings org={activeOrg} user={user} onSave={handleAccountUpdate} notify={notify}/>,
+-      "payment-settings": <PaymentSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
+-      "wallet": <Wallet notify={notify}/>,
++      "payout-settings": <PayoutSettings org={activeOrg} onSave={handleAccountUpdate} notify={notify}/>,
++      "wallet": <Wallet org={activeOrg} notify={notify} onNav={nav}/>,
+     };
+     const screen = screens[view] || screens.dashboard;
+     if (user.status === "pending") {
+diff --git a/frontend/src/components/AppNav.jsx b/frontend/src/components/AppNav.jsx
+index bf47018..65f4ef0 100644
+--- a/frontend/src/components/AppNav.jsx
++++ b/frontend/src/components/AppNav.jsx
+@@ -10,7 +10,7 @@ export default function AppNav({ user, onNav, onLogout }) {
+ 
+   const orgLinks = [
+     ["dashboard","Dashboard",LayoutDashboard],["events","Events",Calendar],
+-    ["revenue","Revenue",BarChart3],["wallet","Wallet",Wallet],["payment-settings","Payments",CreditCard],
++    ["revenue","Revenue",BarChart3],["wallet","Wallet",Wallet],["payout-settings","Payout Account",Landmark],
+     ["team","Team",Users],["scanner","Scanner",Scan],["live","Live",Activity],
+     ["scan-log","Scan Log",List],
+   ];
+diff --git a/frontend/src/pages/PublicEventPage.jsx b/frontend/src/pages/PublicEventPage.jsx
+index 4b85972..17755a0 100644
+--- a/frontend/src/pages/PublicEventPage.jsx
++++ b/frontend/src/pages/PublicEventPage.jsx
+@@ -1,5 +1,5 @@
+-import { useState, useEffect } from "react";
+-import { Calendar, CheckCircle, ChevronLeft, Info, Mail, MapPin, Upload } from "lucide-react";
++import { useState } from "react";
++import { Calendar, CheckCircle, ChevronLeft, Info, Mail, MapPin } from "lucide-react";
+ import { EVENT_BANNERS, T, calcServiceCharge, calcTotalWithCharge, calcOrganizerEarning } from "../styles/theme.js";
+ import { Bdg, Btn, Card, Inp, QRDisplay } from "../components/ui/index.jsx";
+ import { useMedia } from "../hooks/useMedia.js";
+@@ -72,20 +72,10 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
+   const [submitting, setSubmitting] = useState(false);
+   const [payStep, setPayStep] = useState("form");
+   const [success, setSuccess] = useState(null);
+-  const [receiptDataUrl, setReceiptDataUrl] = useState(null);
+-  const [receiptName, setReceiptName] = useState("");
+-  const [platformBank, setPlatformBank] = useState(null);
+-
+-  useEffect(() => {
+-    if (payStep === "bank-receipt" && !platformBank) {
+-      api.getPlatformBankDetails().then(setPlatformBank).catch(() => {});
+-    }
+-  }, [payStep, platformBank]);
+ 
+   const selType = event.ticketTypes[selTypeId];
+   const isFree = !selType?.price||selType.price===0;
+   const setF = (id,v) => setFormData(f=>({...f,[id]:v}));
+-  const getPayCfg = () => event.paymentConfig||window._evPayCfg||{};
+ 
+   const issueTicket = async (payRef, payStatus="free", provider=null) => {
+     if (payStatus==="paid") {
+@@ -123,7 +113,7 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
+       code:encodeTicket(event.id,tId,uId),holderName,holderEmail,holderPhone,
+       status:payStatus==="pending"?"pending_payment":"unused",
+       customData:formData,registeredAt:new Date().toISOString(),
+-      paymentRef:payRef||null,paymentStatus:payStatus,receiptUrl:receiptDataUrl||null,
++      paymentRef:payRef||null,paymentStatus:payStatus,
+       ticketPrice:selType?.price||0,
+       feeMode:event.feeMode||"pass_through",
+       platformFee:calcServiceCharge(selType?.price||0),
+@@ -142,21 +132,13 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
+     const missing = event.regFields.filter(f=>f.required&&!formData[f.id]);
+     if (missing.length) { notify("Fill required: "+missing.map(f=>f.label).join(", "),"error"); return; }
+     setSubmitting(true);
+-    const cfg = getPayCfg();
+-    const payProvider = cfg.provider||"none";
+-    if (isFree||payProvider==="none") { await issueTicket(null,"free"); return; }
++    if (isFree) { await issueTicket(null,"free"); return; }
+     const holderEmail=formData[event.regFields[1]?.id]||"";
+     const holderName=formData[event.regFields[0]?.id]||"Attendee";
+-    const holderPhone=formData[event.regFields[2]?.id]||"";
+     const chargeAmount = calcTotalWithCharge(selType.price, event.feeMode);
+-    if (payProvider==="card"||payProvider==="korapay") {
+-      setSubmitting(false); setPayStep("paying");
+-      try { await openKorapayCheckout({ email:holderEmail,name:holderName,amount:chargeAmount,eventTitle:event.title,onSuccess:async(ref)=>{setSubmitting(true);await issueTicket(ref,"paid","korapay")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
+-      catch(e) { setPayStep("form");notify(e.message,"error"); }
+-      return;
+-    }
+-    if (payProvider==="bank") { setSubmitting(false); setPayStep("bank-receipt"); return; }
+-    await issueTicket(null,"free");
++    setSubmitting(false); setPayStep("paying");
++    try { await openKorapayCheckout({ email:holderEmail,name:holderName,amount:chargeAmount,eventTitle:event.title,onSuccess:async(ref)=>{setSubmitting(true);await issueTicket(ref,"paid","korapay")},onClose:()=>{setPayStep("form");notify("Payment cancelled","error")} }); }
++    catch(e) { setPayStep("form");notify(e.message,"error"); }
+   };
+ 
+   if (success) {
+@@ -239,7 +221,7 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
+               <h3 style={{ fontSize:16,fontWeight:700,color:T.text,marginBottom:4 }}>Registration Form</h3>
+               <p style={{ fontSize:13,color:"var(--ev-muted)",marginBottom:20 }}>Fill in your details to secure your spot.</p>
+               <div style={{ display:"flex",flexDirection:"column",gap:16 }}>
+-                {payStep!=="bank-receipt"&&event.regFields.map(f=><CustomField key={f.id} field={f} value={formData[f.id]} onChange={v=>setF(f.id,v)}/>)}
++                {payStep!=="paying"&&event.regFields.map(f=><CustomField key={f.id} field={f} value={formData[f.id]} onChange={v=>setF(f.id,v)}/>)}
+                 {payStep==="paying"&&(
+                   <div style={{ padding:20,borderRadius:14,background:"var(--ev-accent)15",border:"1px solid var(--ev-accent)40",textAlign:"center" }}>
+                     <div className="spin" style={{ width:28,height:28,border:"3px solid var(--ev-border)",borderTopColor:"var(--ev-accentL)",borderRadius:"50%",margin:"0 auto 10px" }}/>
+@@ -247,53 +229,9 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
+                     <p style={{ fontSize:12,color:"var(--ev-muted)",marginTop:4 }}>Do not close this page</p>
+                   </div>
+                 )}
+-                {payStep==="bank-receipt"&&(()=>{
+-                  const total=calcTotalWithCharge(selType?.price||0, event.feeMode);
+-                  return (
+-                    <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+-                      <div style={{ padding:16,borderRadius:14,background:"var(--ev-gold)12",border:"1px solid var(--ev-gold)40" }}>
+-                        <p style={{ fontSize:13,fontWeight:700,color:"var(--ev-gold)",marginBottom:10 }}>💳 Transfer to this account:</p>
+-                        {!platformBank && <p style={{ fontSize:12,color:"var(--ev-muted)" }}>Loading account details…</p>}
+-                        {platformBank && (
+-                        <div style={{ display:"grid",gap:8 }}>
+-                          {[["Bank",platformBank.bankName],["Account No.",platformBank.accountNumber],["Account Name",platformBank.accountName],[event.feeMode==="absorb"?"Amount":"Amount (incl. 5% fee)",`₦${total.toLocaleString()}`]].map(([k,v])=>(
+-                            <div key={k} style={{ display:"flex",justifyContent:"space-between",fontSize:13 }}>
+-                              <span style={{ color:"var(--ev-muted)" }}>{k}</span>
+-                              <span style={{ color:T.text,fontWeight:700 }}>{v}</span>
+-                            </div>
+-                          ))}
+-                        </div>
+-                        )}
+-                      </div>
+-                      <div>
+-                        <label style={{ fontSize:11,fontWeight:700,color:"var(--ev-muted)",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8 }}>Upload Transfer Receipt <span style={{ color:"var(--ev-danger)" }}>*</span></label>
+-                        {!receiptDataUrl?(
+-                          <label style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:8,padding:28,borderRadius:12,border:"2px dashed var(--ev-border)",cursor:"pointer",background:"var(--ev-surface)" }}
+-                            onMouseEnter={e=>e.currentTarget.style.borderColor="var(--ev-accent)"}
+-                            onMouseLeave={e=>e.currentTarget.style.borderColor="var(--ev-border)"}>
+-                            <Upload size={24} color="var(--ev-muted)"/>
+-                            <span style={{ fontSize:13,color:"var(--ev-muted)" }}>Click to upload screenshot or PDF</span>
+-                            <input type="file" accept="image/*,application/pdf" style={{ display:"none" }} onChange={e=>{const file=e.target.files[0];if(!file)return;if(file.size>5*1024*1024){notify("File must be under 5 MB","error");return;}setReceiptName(file.name);const r=new FileReader();r.onload=ev=>setReceiptDataUrl(ev.target.result);r.readAsDataURL(file);}}/>
+-                          </label>
+-                        ):(
+-                          <div style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:12,background:"var(--ev-success)12",border:"1px solid var(--ev-success)40" }}>
+-                            <CheckCircle size={16} color="var(--ev-success)"/>
+-                            <span style={{ fontSize:13,color:"var(--ev-success)",flex:1 }}>{receiptName}</span>
+-                            <button onClick={()=>{setReceiptDataUrl(null);setReceiptName("");}} style={{ background:"none",border:"none",color:"var(--ev-muted)",cursor:"pointer" }}>✕</button>
+-                          </div>
+-                        )}
+-                      </div>
+-                      <Btn full sz="lg" disabled={!receiptDataUrl||submitting} onClick={async()=>{setSubmitting(true);await issueTicket("BANK_PENDING","pending");}}>
+-                        {submitting?"Submitting…":"Submit Receipt & Wait for Confirmation"}
+-                      </Btn>
+-                      <button onClick={()=>{setPayStep("form");setReceiptDataUrl(null);setReceiptName("");}} style={{ background:"none",border:"none",color:"var(--ev-muted)",fontSize:12,cursor:"pointer",textAlign:"center",marginTop:-4 }}>← Back to form</button>
+-                    </div>
+-                  );
+-                })()}
+-                {payStep!=="paying"&&payStep!=="bank-receipt"&&(()=>{
+-                  const cfg=getPayCfg();
++                {payStep!=="paying"&&(()=>{
+                   const total=calcTotalWithCharge(selType?.price||0, event.feeMode);
+-                  const btnLabel=submitting?"Processing…":isFree?"Register Free":(cfg.provider==="card"||cfg.provider==="korapay")?`Pay ₦${total.toLocaleString()} with Korapay`:cfg.provider==="bank"?`Register · Pay ₦${total.toLocaleString()} via Transfer`:`Register · ₦${total.toLocaleString()}`;
++                  const btnLabel=submitting?"Processing…":isFree?"Register Free":`Pay ₦${total.toLocaleString()} with Korapay`;
+                   return (
+                     <div>
+                       {!isFree&&<PriceBreakdown price={selType?.price||0} feeMode={event.feeMode}/>}
+diff --git a/frontend/src/pages/organizer/CreateEvent.jsx b/frontend/src/pages/organizer/CreateEvent.jsx
+index 54f77e2..7a4446c 100644
+--- a/frontend/src/pages/organizer/CreateEvent.jsx
++++ b/frontend/src/pages/organizer/CreateEvent.jsx
+@@ -9,7 +9,7 @@ import { DEF_FIELDS } from "../../data/seedData.js";
+ export default function CreateEvent({ org, onSubmit, onBack }) {
+   const { mobile } = useMedia();
+   const [step, setStep] = useState(1);
+-  const [det, setDet] = useState({ title:"", desc:"", date:"", time:"18:00", endTime:"22:00", venue:"", city:"Lagos", category:"Music", banner:"music", coverImage:"", feeMode:"pass_through" });
++  const [det, setDet] = useState({ title:"", desc:"", date:"", time:"18:00", endTime:"22:00", venue:"", city:"Lagos", category:"Music", banner:"music", coverImage:"", feeMode:"pass_through", isFree:false });
+   const [gates, setGates] = useState([
+     { id:genId("GT"), name:"Main Entrance", color:"#7c3aed" },
+     { id:genId("GT"), name:"VIP Gate",      color:"#f59e0b" },
+@@ -46,7 +46,7 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+   const submit = () => {
+     const evId=genId("EVT");
+     const gatesObj=Object.fromEntries(gates.map(g=>[g.id,{name:g.name,color:g.color}]));
+-    const typesObj=Object.fromEntries(types.map(t=>[t.id,{name:t.name,price:parseInt(t.price)||0,qty:parseInt(t.qty)||100,color:t.color,perks:t.perksStr.split(",").map(s=>s.trim()).filter(Boolean)}]));
++    const typesObj=Object.fromEntries(types.map(t=>[t.id,{name:t.name,price:det.isFree?0:(parseInt(t.price)||0),qty:parseInt(t.qty)||100,color:t.color,perks:t.perksStr.split(",").map(s=>s.trim()).filter(Boolean)}]));
+     const gKeys=Object.keys(gatesObj), tKeys=Object.keys(typesObj);
+     const n=parseInt(count)||60;
+     const tickets=Array.from({length:n},(_,i)=>{
+@@ -97,6 +97,23 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+               <Inp label="City" value={det.city} onChange={setD("city")} options={["Lagos","Abuja","Port Harcourt","Kano","Ibadan","Enugu"].map(v=>({value:v,label:v}))}/>
+               <Inp label="Tickets to Generate" type="number" value={count} onChange={setCount}/>
+             </div>
++            <div>
++              <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8}}>Is this a free event?</label>
++              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
++                {[
++                  [false,"Paid — sell tickets","Set prices per tier. Payments are collected automatically via Korapay."],
++                  [true,"Free — no payment required","Attendees register instantly with no checkout step."],
++                ].map(([val,label,desc])=>(
++                  <button key={String(val)} type="button" onClick={()=>setD("isFree")(val)}
++                    style={{flex:"1 1 220px",textAlign:"left",padding:"12px 14px",borderRadius:12,cursor:"pointer",
++                      border:`1.5px solid ${det.isFree===val?"#7c3aed":"#33415560"}`,
++                      background:det.isFree===val?"#7c3aed18":"transparent"}}>
++                    <p style={{fontSize:13,fontWeight:700,color:det.isFree===val?"#c4b5fd":T.text,marginBottom:3}}>{label}</p>
++                    <p style={{fontSize:11.5,color:"#94a3b8",lineHeight:1.5}}>{desc}</p>
++                  </button>
++                ))}
++              </div>
++            </div>
+             <div>
+               <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8}}>Event Image (used as the ticket background)</label>
+               <div style={{display:"flex",alignItems:"center",gap:12}}>
+@@ -153,6 +170,12 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+             <Btn sz="sm" onClick={addType} icon={<Plus size={13}/>}>Add Tier</Btn>
+           </div>
+           <div style={{marginBottom:22,padding:16,borderRadius:14,border:`1px solid #33415560`,background:"#7c3aed08"}}>
++            {det.isFree ? (
++              <p style={{fontSize:12.5,color:"#94a3b8",lineHeight:1.6}}>
++                🔓 This is a free event — ticket prices are locked at ₦0 and no payment step is shown to attendees.
++              </p>
++            ) : (
++            <>
+             <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:10}}>Who pays the {SERVICE_CHARGE_PCT}% service fee?</label>
+             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+               {[
+@@ -177,8 +200,10 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+                 </p>
+               );
+             })()}
++            </>
++            )}
+           </div>
+-          <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:20}}>
++          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
+             {types.map(t=>(
+               <div key={t.id} style={{padding:18,borderRadius:14,border:`2px solid ${t.color+"40"}`,background:t.color+"08"}}>
+                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
+@@ -187,7 +212,12 @@ export default function CreateEvent({ org, onSubmit, onBack }) {
+                 </div>
+                 <div className="g3 g2">
+                   <Inp label="Name" value={t.name} onChange={v=>setType(t.id,"name",v)}/>
+-                  <Inp label="Price (₦)" type="number" value={t.price} onChange={v=>setType(t.id,"price",v)}/>
++                  {det.isFree
++                    ? <div>
++                        <label style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:".06em",display:"block",marginBottom:8}}>Price</label>
++                        <div style={{padding:"10px 14px",borderRadius:10,border:"1px solid #33415560",color:T.success,fontWeight:700,fontSize:13}}>Free</div>
++                      </div>
++                    : <Inp label="Price (₦)" type="number" value={t.price} onChange={v=>setType(t.id,"price",v)}/>}
+                   <Inp label="Qty" type="number" value={t.qty} onChange={v=>setType(t.id,"qty",v)}/>
+                 </div>
+                 <div style={{marginTop:10}}><Inp label="Perks (comma separated)" value={t.perksStr} onChange={v=>setType(t.id,"perksStr",v)} placeholder="Priority entry, Lounge access"/></div>
+diff --git a/frontend/src/pages/organizer/PaymentSettings.jsx b/frontend/src/pages/organizer/PaymentSettings.jsx
+deleted file mode 100644
+index d1f9c04..0000000
+--- a/frontend/src/pages/organizer/PaymentSettings.jsx
++++ /dev/null
+@@ -1,132 +0,0 @@
+-import { useState } from "react";
+-import { CreditCard, Building2, Save, CheckCircle } from "lucide-react";
+-import { T } from "../../styles/theme.js";
+-import { Btn, Card } from "../../components/ui/index.jsx";
+-import { useMedia } from "../../hooks/useMedia.js";
+-
+-function Section({ icon: Icon, title, subtitle, children }) {
+-  return (
+-    <Card style={{ padding: 24, marginBottom: 20 }}>
+-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+-        <div style={{ width: 36, height: 36, borderRadius: 10, background: T.accent + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
+-          <Icon size={16} style={{ color: T.accent }} />
+-        </div>
+-        <div>
+-          <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{title}</h3>
+-          {subtitle && <p style={{ fontSize: 12, color: T.muted }}>{subtitle}</p>}
+-        </div>
+-      </div>
+-      {children}
+-    </Card>
+-  );
+-}
+-
+-const PROVIDERS = [
+-  { id: "none",   label: "🔓 Free / Manual",  desc: "No payment collected. Tickets are issued immediately on registration." },
+-  { id: "card",   label: "💳 Card Payments (Korapay)", desc: "Enabled automatically — no setup needed. Sales are credited straight to your Evenova wallet; withdraw anytime from Wallet." },
+-  { id: "bank",   label: "🏦 Bank Transfer",   desc: "Attendees pay into Evenova's account and upload proof of transfer. Once confirmed, it's credited to your wallet." },
+-];
+-
+-export default function PaymentSettings({ org, onSave, notify }) {
+-  const { mobile } = useMedia();
+-
+-  const saved = org.paymentConfig || {};
+-  const [provider, setProvider]       = useState(saved.provider === "paystack" || saved.provider === "flutterwave" || saved.provider === "korapay" ? "card" : (saved.provider || "none"));
+-  const [saving, setSaving]           = useState(false);
+-  const [wasSaved, setWasSaved]       = useState(false);
+-
+-  const save = async () => {
+-    setSaving(true);
+-    try {
+-      const cfg = { provider };
+-      await onSave({ paymentConfig: cfg });
+-      setWasSaved(true);
+-      notify("Payment settings saved!");
+-      setTimeout(() => setWasSaved(false), 3000);
+-    } catch (e) {
+-      notify("Failed to save: " + e.message, "error");
+-    } finally {
+-      setSaving(false);
+-    }
+-  };
+-
+-  return (
+-    <div style={{ maxWidth: 720, margin: "0 auto", padding: mobile ? "16px" : "32px 24px" }}>
+-      <div style={{ marginBottom: 28 }}>
+-        <h1 className="outfit" style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>Payment Settings</h1>
+-        <p style={{ color: T.muted, fontSize: 14 }}>Choose how attendees pay for tickets to your events.</p>
+-      </div>
+-
+-      <Section icon={CreditCard} title="Payment Provider" subtitle="Applied to all your paid events">
+-        {/* Provider selector */}
+-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+-          {PROVIDERS.map(p => (
+-            <div key={p.id} onClick={() => setProvider(p.id)}
+-              style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderRadius: 12, cursor: "pointer",
+-                border: `2px solid ${provider === p.id ? T.accent : T.border}`,
+-                background: provider === p.id ? T.accent + "12" : "transparent",
+-                transition: "all .15s" }}>
+-              <div style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${provider === p.id ? T.accent : T.muted}`,
+-                background: provider === p.id ? T.accent : "transparent", flexShrink: 0,
+-                display: "flex", alignItems: "center", justifyContent: "center" }}>
+-                {provider === p.id && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "white" }} />}
+-              </div>
+-              <div>
+-                <p style={{ fontSize: 14, fontWeight: 700, color: provider === p.id ? T.accent : T.text }}>{p.label}</p>
+-                <p style={{ fontSize: 12, color: T.muted }}>{p.desc}</p>
+-              </div>
+-            </div>
+-          ))}
+-        </div>
+-
+-        {/* Card payments info (no config needed — platform-wide) */}
+-        {provider === "card" && (
+-          <div style={{ padding: 16, borderRadius: 12, background: T.success + "12", border: `1px solid ${T.success}30`, marginBottom: 16 }}>
+-            <p style={{ fontSize: 12, color: T.text, lineHeight: 1.7 }}>
+-              ✅ Nothing to set up — card payments are handled by Evenova directly. Each sale is credited to your wallet as soon as payment is confirmed.
+-            </p>
+-          </div>
+-        )}
+-
+-        {/* Bank transfer info (no config needed — always Evenova's account) */}
+-        {provider === "bank" && (
+-          <div style={{ padding: 16, borderRadius: 12, background: T.gold + "12", border: `1px solid ${T.gold}30`, marginBottom: 16 }}>
+-            <p style={{ fontSize: 12, color: T.text, lineHeight: 1.7 }}>
+-              💡 Attendees see Evenova's own bank account at checkout, make the transfer, and upload their receipt. Our team confirms receipt and credits your wallet — no bank details needed from you.
+-            </p>
+-          </div>
+-        )}
+-
+-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+-          <Btn onClick={save} disabled={saving} v={wasSaved ? "success" : "primary"}>
+-            {wasSaved
+-              ? <><CheckCircle size={14} /> Saved!</>
+-              : saving ? "Saving…"
+-              : <><Save size={14} /> Save Settings</>}
+-          </Btn>
+-        </div>
+-      </Section>
+-
+-      {/* How it works — only show when a real provider is chosen */}
+-      {provider !== "none" && (
+-        <Section icon={Building2} title="How it works">
+-          {provider === "card" && (
+-            <ol style={{ fontSize: 13, color: T.muted, lineHeight: 2, paddingLeft: 18, margin: 0 }}>
+-              <li>Attendee fills your registration form and clicks <strong style={{ color: T.text }}>Pay</strong>.</li>
+-              <li>A secure checkout opens — supports card, bank transfer, USSD, and more.</li>
+-              <li>On successful payment, the ticket is <strong style={{ color: T.success }}>automatically issued and emailed</strong>, and your wallet is credited.</li>
+-            </ol>
+-          )}
+-          {provider === "bank" && (
+-            <ol style={{ fontSize: 13, color: T.muted, lineHeight: 2, paddingLeft: 18, margin: 0 }}>
+-              <li>Attendee fills your form and sees Evenova's bank account details.</li>
+-              <li>They make a bank transfer and upload a screenshot or PDF of the receipt.</li>
+-              <li>Our team confirms the transfer was received (usually within a few hours).</li>
+-              <li>Once confirmed, the ticket is <strong style={{ color: T.success }}>issued and emailed automatically</strong>, and your <strong style={{ color: T.text }}>wallet is credited</strong>.</li>
+-            </ol>
+-          )}
+-        </Section>
+-      )}
+-    </div>
+-  );
+-}
+\ No newline at end of file
+diff --git a/frontend/src/pages/organizer/PayoutSettings.jsx b/frontend/src/pages/organizer/PayoutSettings.jsx
+new file mode 100644
+index 0000000..29c8bf7
+--- /dev/null
++++ b/frontend/src/pages/organizer/PayoutSettings.jsx
+@@ -0,0 +1,125 @@
++import { useEffect, useState } from "react";
++import { Landmark, Save, CheckCircle, ShieldCheck } from "lucide-react";
++import { T } from "../../styles/theme.js";
++import { Btn, Card, Inp } from "../../components/ui/index.jsx";
++import { useMedia } from "../../hooks/useMedia.js";
++import { api } from "../../utils/api.js";
++import { KEYS, storGet } from "../../utils/storage.js";
++
++function Section({ icon: Icon, title, subtitle, children }) {
++  return (
++    <Card style={{ padding: 24, marginBottom: 20 }}>
++      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
++        <div style={{ width: 36, height: 36, borderRadius: 10, background: T.accent + "22", display: "flex", alignItems: "center", justifyContent: "center" }}>
++          <Icon size={16} style={{ color: T.accent }} />
++        </div>
++        <div>
++          <h3 style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{title}</h3>
++          {subtitle && <p style={{ fontSize: 12, color: T.muted }}>{subtitle}</p>}
++        </div>
++      </div>
++      {children}
++    </Card>
++  );
++}
++
++// Organizers set this once here instead of retyping their bank details every
++// time they withdraw — the Wallet page's withdrawal form uses whatever is
++// saved here by default. Card payments are always handled by Korapay
++// automatically, so there's nothing to configure for that side; this page is
++// purely about where payouts land.
++export default function PayoutSettings({ org, onSave, notify }) {
++  const { mobile } = useMedia();
++  const token = storGet(KEYS.TOKEN, null);
++
++  const saved = org.payoutAccount || {};
++  const [banks, setBanks] = useState([]);
++  const [bankCode, setBankCode] = useState(saved.bankCode || "");
++  const [accountNumber, setAccountNumber] = useState(saved.accountNumber || "");
++  const [accountName, setAccountName] = useState(saved.accountName || "");
++  const [resolving, setResolving] = useState(false);
++  const [saving, setSaving] = useState(false);
++  const [wasSaved, setWasSaved] = useState(false);
++
++  useEffect(() => {
++    api.listBanks(token).then(setBanks).catch(() => {});
++  }, [token]);
++
++  const resolveAccount = async () => {
++    if (!accountNumber || accountNumber.length < 10 || !bankCode) return;
++    setResolving(true);
++    try {
++      const r = await api.resolveBankAccount(accountNumber, bankCode, token);
++      setAccountName(r.accountName);
++    } catch (e) {
++      setAccountName("");
++      notify(e.message || "Couldn't verify that account", "error");
++    } finally {
++      setResolving(false);
++    }
++  };
++
++  const save = async () => {
++    if (!bankCode || !accountNumber || !accountName) {
++      notify("Complete your bank details and verify the account first", "error");
++      return;
++    }
++    setSaving(true);
++    try {
++      const bank = banks.find(b => b.code === bankCode);
++      const payoutAccount = { bankCode, bankName: bank?.name || saved.bankName || "", accountNumber, accountName };
++      await onSave({ payoutAccount });
++      setWasSaved(true);
++      notify("Payout account saved!");
++      setTimeout(() => setWasSaved(false), 3000);
++    } catch (e) {
++      notify("Failed to save: " + e.message, "error");
++    } finally {
++      setSaving(false);
++    }
++  };
++
++  return (
++    <div style={{ maxWidth: 720, margin: "0 auto", padding: mobile ? "16px" : "32px 24px" }}>
++      <div style={{ marginBottom: 28 }}>
++        <h1 className="outfit" style={{ fontSize: 26, fontWeight: 800, color: T.text, marginBottom: 4 }}>Payout Account</h1>
++        <p style={{ color: T.muted, fontSize: 14 }}>Where your ticket sales get sent when you withdraw from your Wallet.</p>
++      </div>
++
++      <div style={{ padding: 16, borderRadius: 12, background: T.success + "12", border: `1px solid ${T.success}30`, marginBottom: 20, display: "flex", gap: 10 }}>
++        <ShieldCheck size={16} style={{ color: T.success, flexShrink: 0, marginTop: 1 }} />
++        <p style={{ fontSize: 12, color: T.text, lineHeight: 1.7 }}>
++          Every ticket sale is collected by Korapay automatically — there's nothing to set up for accepting payments. Just add the bank account below so you can withdraw your balance whenever you're ready.
++        </p>
++      </div>
++
++      <Section icon={Landmark} title="Bank account" subtitle="Used to pre-fill withdrawal requests from your Wallet">
++        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
++          <Inp label="Bank" value={bankCode} onChange={v => { setBankCode(v); setAccountName(""); }}
++            options={banks.map(b => ({ value: b.code, label: b.name }))} />
++          <Inp label="Account Number" value={accountNumber}
++            onChange={v => { setAccountNumber(v); setAccountName(""); }}
++            placeholder="0123456789" />
++          {resolving && <p style={{ fontSize: 12, color: T.muted }}>Verifying account…</p>}
++          {accountName && (
++            <div style={{ padding: 10, borderRadius: 8, background: T.success + "12", border: `1px solid ${T.success}30`, fontSize: 13, color: T.success, display: "flex", alignItems: "center", gap: 6 }}>
++              <CheckCircle size={13} /> {accountName}
++            </div>
++          )}
++          {!resolving && accountNumber?.length >= 10 && bankCode && !accountName && (
++            <Btn sz="sm" v="secondary" onClick={resolveAccount}>Verify account</Btn>
++          )}
++        </div>
++
++        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
++          <Btn onClick={save} disabled={saving} v={wasSaved ? "success" : "primary"}>
++            {wasSaved
++              ? <><CheckCircle size={14} /> Saved!</>
++              : saving ? "Saving…"
++              : <><Save size={14} /> Save Payout Account</>}
++          </Btn>
++        </div>
++      </Section>
++    </div>
++  );
++}
+diff --git a/frontend/src/pages/organizer/Wallet.jsx b/frontend/src/pages/organizer/Wallet.jsx
+index f1a8b35..bce729d 100644
+--- a/frontend/src/pages/organizer/Wallet.jsx
++++ b/frontend/src/pages/organizer/Wallet.jsx
+@@ -8,9 +8,10 @@ import { KEYS, storGet } from "../../utils/storage.js";
+ 
+ const STATUS_COLOR = { pending: "gold", approved: "blue", paid: "green", rejected: "red" };
+ 
+-export default function Wallet({ notify }) {
++export default function Wallet({ org, notify, onNav }) {
+   const { mobile } = useMedia();
+   const token = storGet(KEYS.TOKEN, null);
++  const savedPayout = org?.payoutAccount || null;
+ 
+   const [balanceNaira, setBalanceNaira] = useState(0);
+   const [txns, setTxns] = useState([]);
+@@ -18,18 +19,32 @@ export default function Wallet({ notify }) {
+   const [loading, setLoading] = useState(true);
+   const [showForm, setShowForm] = useState(false);
+ 
+-  // withdrawal form state
++  // withdrawal form state — defaults to the organizer's saved payout account
++  // (set once in Payout Account settings) so bank details don't need to be
++  // retyped on every withdrawal.
+   const [method, setMethod] = useState("bank");
+   const [amount, setAmount] = useState("");
+   const [banks, setBanks] = useState([]);
+-  const [bankCode, setBankCode] = useState("");
+-  const [accountNumber, setAccountNumber] = useState("");
+-  const [accountName, setAccountName] = useState("");
++  const [bankCode, setBankCode] = useState(savedPayout?.bankCode || "");
++  const [accountNumber, setAccountNumber] = useState(savedPayout?.accountNumber || "");
++  const [accountName, setAccountName] = useState(savedPayout?.accountName || "");
+   const [resolving, setResolving] = useState(false);
+   const [cryptoAsset, setCryptoAsset] = useState("USDT");
+   const [cryptoNetwork, setCryptoNetwork] = useState("TRC20");
+   const [cryptoAddress, setCryptoAddress] = useState("");
+   const [submitting, setSubmitting] = useState(false);
++  const [editingBank, setEditingBank] = useState(!savedPayout?.accountNumber);
++
++  // If the saved payout account loads in after the form is already open
++  // (org profile fetch resolves late), fill the fields in once.
++  useEffect(() => {
++    if (savedPayout?.accountNumber && !accountNumber) {
++      setBankCode(savedPayout.bankCode || "");
++      setAccountNumber(savedPayout.accountNumber || "");
++      setAccountName(savedPayout.accountName || "");
++    }
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [savedPayout?.accountNumber]);
+ 
+   const load = useCallback(async () => {
+     setLoading(true);
+@@ -145,6 +160,18 @@ export default function Wallet({ notify }) {
+           <Inp label="Amount (₦)" type="number" value={amount} onChange={setAmount} placeholder={`Up to ₦${balanceNaira.toLocaleString()}`} />
+ 
+           {method === "bank" ? (
++            !editingBank && savedPayout?.accountNumber ? (
++              <div style={{ marginTop: 12 }}>
++                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}` }}>
++                  <div>
++                    <p style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{accountName}</p>
++                    <p style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>{banks.find(b=>b.code===bankCode)?.name || savedPayout.bankName} · {accountNumber}</p>
++                  </div>
++                  <button onClick={() => setEditingBank(true)} style={{ background: "none", border: "none", color: T.accentL, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Change</button>
++                </div>
++                <p style={{ fontSize: 11, color: T.muted, marginTop: 8 }}>This is your saved payout account. Manage it anytime in <a href="#" onClick={e=>{e.preventDefault(); onNav?.("payout-settings");}} style={{ color: T.accentL }}>Payout Account</a> settings.</p>
++              </div>
++            ) : (
+             <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+               <Inp label="Bank" value={bankCode} onChange={v => { setBankCode(v); setAccountName(""); }}
+                 options={banks.map(b => ({ value: b.code, label: b.name }))} />
+@@ -160,7 +187,11 @@ export default function Wallet({ notify }) {
+               {!resolving && accountNumber?.length >= 10 && bankCode && !accountName && (
+                 <Btn sz="sm" v="secondary" onClick={resolveAccount}>Verify account</Btn>
+               )}
++              <p style={{ fontSize: 11, color: T.muted }}>
++                💡 Tip: save this in <a href="#" onClick={e=>{e.preventDefault(); onNav?.("payout-settings");}} style={{ color: T.accentL }}>Payout Account</a> settings so you don't have to re-enter it next time.
++              </p>
+             </div>
++            )
+           ) : (
+             <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+               <Inp label="Asset" value={cryptoAsset} onChange={setCryptoAsset}
