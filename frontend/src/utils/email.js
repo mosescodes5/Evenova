@@ -84,18 +84,13 @@ export async function buildTicketHtml(ticket, event, ticketType) {
   // fall back to the brand gradient if the organizer hasn't uploaded either.
   const bgImage = ticketType?.ticketImage || event.coverImage || "";
 
-  // Generate a REAL, scannable QR code (not just text) from the same signed
-  // payload the gate scanner verifies against (ticket.code).
-  let qrDataUrl = "";
-  try {
-    const QRCode = await import("qrcode");
-    qrDataUrl = await QRCode.toDataURL(ticket.code, {
-      margin: 1, width: 320,
-      color: { dark: "#1a1a1a", light: "#ffffff" },
-    });
-  } catch (e) {
-    console.error("QR generation failed, falling back to text code", e);
-  }
+  // Real, scannable QR code from the same signed payload the gate scanner
+  // verifies against (ticket.code) — served as a real HTTPS image from our
+  // own backend rather than embedded as a base64 data: URI. Gmail, Outlook,
+  // and most other mail clients silently strip data: URIs from <img src>
+  // for security reasons, which is why QR codes weren't rendering in
+  // ticket emails before; a normal remote image URL works everywhere.
+  const qrDataUrl = `${API}/api/qr?data=${encodeURIComponent(ticket.code)}&size=320`;
 
   const heroStyle = bgImage
     ? `background-image:url('${bgImage}');background-size:cover;background-position:center;`

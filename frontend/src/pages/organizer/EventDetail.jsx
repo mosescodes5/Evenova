@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Activity, CheckCircle, ChevronLeft, Clock, Copy, Download, Eye, Globe, Phone, Plus, QrCode, Scan, Search, Send, Ticket, TrendingUp, X } from "lucide-react";
+import { Activity, CheckCircle, ChevronLeft, Clock, Copy, Download, Eye, Globe, Phone, Plus, QrCode, Scan, Search, Send, Ticket, Trash2, TrendingUp, X } from "lucide-react";
 import { T } from "../../styles/theme.js";
 import { Bdg, Btn, Card, Inp, Modal, QRDisplay, StatCard } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
@@ -69,7 +69,7 @@ function ManualTicketModal({ open, onClose, event, onIssue, notify }) {
   );
 }
 
-export default function EventDetail({ event, onBack, onNav, notify, onAddTicket }) {
+export default function EventDetail({ event, onBack, onNav, notify, onAddTicket, onDelete }) {
   const { mobile } = useMedia();
   const [showQR, setShowQR] = useState(null);
   const [showManual, setShowManual] = useState(false);
@@ -81,6 +81,15 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket 
   const used    = event.tickets.filter(t=>t.status==="used").length;
   const pending = event.tickets.filter(t=>t.paymentStatus==="pending");
   const link    = `https://evenova.ng/e/${event.id}`;
+
+  const handleDelete = () => {
+    const soldCount = event.tickets.length;
+    const warning = soldCount > 0
+      ? `Delete "${event.title}"? This permanently removes the event and all ${soldCount} ticket(s)/attendee data with it. This cannot be undone.`
+      : `Delete "${event.title}"? This cannot be undone.`;
+    if (!window.confirm(warning)) return;
+    onDelete?.(event.id);
+  };
 
   const filtered = useMemo(()=>
     event.tickets.filter(t=>
@@ -105,6 +114,7 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket 
           <Btn sz="sm" v="secondary" onClick={()=>onNav("scanner",event.id)}><Scan size={13}/>Scanner</Btn>
           <Btn sz="sm" v="secondary" onClick={()=>setShowManual(true)}><Plus size={13}/>Manual Ticket</Btn>
           <Btn sz="sm" onClick={()=>onNav("live",event.id)}><Activity size={13}/>Live Stats</Btn>
+          <Btn sz="sm" v="secondary" onClick={handleDelete} style={{color:T.danger,borderColor:T.danger+"40"}}><Trash2 size={13}/>Delete Event</Btn>
         </div>
       </div>
 

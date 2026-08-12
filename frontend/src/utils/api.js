@@ -90,6 +90,7 @@ export const api = {
 
   // Events — create/update goes through the backend now (was direct-to-Supabase)
   saveEvent: (event, token) => request("/events-flat", { method: "PUT", body: event, token }),
+  deleteEvent: (id, token) => request(`/events-flat/${id}`, { method: "DELETE", token }),
   registerForEvent: (eventId, ticket) => request(`/events-flat/${eventId}/register`, { method: "POST", body: { ticket } }),
   getMyEvents: (token) => request("/events-flat/mine", { token }),
 

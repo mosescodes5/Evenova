@@ -25,6 +25,13 @@ export const config = {
 
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
 
+  // The backend's own PUBLIC base URL — needed anywhere a link/image has to
+  // be reachable from outside this server (e.g. a QR code image embedded in
+  // an email, which the recipient's mail client fetches over the open
+  // internet, not from localhost). Set this to your deployed backend URL
+  // (e.g. https://api.yourapp.com) in production.
+  apiUrl: process.env.API_URL || process.env.BACKEND_URL || `http://localhost:${parseInt(process.env.PORT || "4000", 10)}`,
+
   db: {
     url: process.env.DATABASE_URL || process.env.MONGO_URI || "",
   },

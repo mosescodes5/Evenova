@@ -66,6 +66,28 @@ router.put("/", requireAuth, requireOrganizer, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── DELETE /api/events-flat/:id ─ permanently remove an event ──
+// Only the owning organizer (or an admin) can delete their own event.
+// This is destructive — it takes the event's tickets/attendee data with it
+// — so the frontend is expected to confirm with the organizer before
+// calling this.
+router.delete("/:id", requireAuth, requireOrganizer, async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await assertOwnsEvent(req, id);
+
+    const { data: existing, error: loadErr } = await supabaseAdmin
+      .from("events").select("id").eq("id", id).maybeSingle();
+    if (loadErr) throw loadErr;
+    if (!existing) return res.status(404).json({ error: "Event not found" });
+
+    const { error } = await supabaseAdmin.from("events").delete().eq("id", id);
+    if (error) throw error;
+
+    res.json({ ok: true, id });
+  } catch (err) { next(err); }
+});
+
 export default router;
 
 // ── POST /api/events-flat/:id/register ─ public attendee registration ──

@@ -312,7 +312,7 @@ async function blast({
   return results;
 }
 
-// ─── Ticket email (unchanged) ─────────────────────────────────────────────────
+// ─── Ticket email ──────────────────────────────────────────────────────────
 function buildTicketHtml(ticket, event, ticketType) {
   const color = ticketType?.color || "#7c3aed";
   const ticketGif = `${config.frontendUrl}/email-assets/ticket-animation.gif`;
@@ -365,7 +365,7 @@ function buildTicketHtml(ticket, event, ticketType) {
     <div class="row"><span class="label">Ticket ID</span><span class="value" style="font-family:monospace;font-size:12px">${ticket.id}</span></div>
     <div class="qr-box">
       <p style="font-size:13px;font-weight:700;color:#333;margin:0 0 12px">Show this QR code at the gate</p>
-      <div class="qr-code">${ticket.code}</div>
+      <img src="${config.apiUrl}/api/qr?data=${encodeURIComponent(ticket.code)}&size=320" width="200" height="200" alt="Scan this QR code at the gate" style="display:block;margin:0 auto;border-radius:8px;">
       <p style="font-size:11px;color:#aaa;margin:10px 0 0">Cryptographically signed · Cannot be duplicated</p>
     </div>
   </div>

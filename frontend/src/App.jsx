@@ -355,6 +355,21 @@ export default function App() {
     nav("dashboard");
   };
 
+  const deleteEvent = evId => {
+    const token = storGet(KEYS.TOKEN, null);
+    const removed = events.find(e => e.id === evId);
+    setEvents(evs => evs.filter(e => e.id !== evId));
+    api.deleteEvent(evId, token)
+      .then(() => notify("Event deleted"))
+      .catch(e => {
+        console.error(e);
+        // Roll back — the delete didn't actually happen on the server.
+        if (removed) setEvents(evs => [...evs, removed]);
+        notify(`Failed to delete event: ${e.message || "unknown error"}`, "error");
+      });
+    nav("events");
+  };
+
   const addStaff = (orgId, m) => {
     const token = storGet(KEYS.TOKEN, null);
     api.addTeamMember(m, token)
@@ -534,6 +549,7 @@ export default function App() {
         onBack={() => nav("events")}
         onNav={nav}
         notify={notify}
+        onDelete={deleteEvent}
         onAddTicket={(evId, ticket) => setEvents(evs => evs.map(e => {
           if (e.id !== evId) return e;
           const updated = { ...e, tickets: [...e.tickets, ticket] };
