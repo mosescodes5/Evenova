@@ -2,7 +2,7 @@ import { Router } from "express";
 import { ticketLimiter } from "../middleware/rateLimiter.js";
 import { paymentsService } from "../services/paymentsService.js";
 import { walletService } from "../services/walletService.js";
-import { calcOrganizerEarningNaira } from "../utils/fees.js";
+import { calcOrganizerEarningNaira, getEffectiveServiceChargePct } from "../utils/fees.js";
 import { config } from "../config.js";
 
 const router = Router();
@@ -48,7 +48,8 @@ router.post("/verify", ticketLimiter, async (req, res, next) => {
 
     let credited = false;
     if (result?.verified && orgId && ticketPriceNaira > 0) {
-      const earningNaira = calcOrganizerEarningNaira(Number(ticketPriceNaira), feeMode);
+      const effectivePct = await getEffectiveServiceChargePct(orgId);
+      const earningNaira = calcOrganizerEarningNaira(Number(ticketPriceNaira), feeMode, effectivePct);
       if (earningNaira > 0) {
         await walletService.creditForTicketSale({
           orgId, amountKobo: Math.round(earningNaira * 100),

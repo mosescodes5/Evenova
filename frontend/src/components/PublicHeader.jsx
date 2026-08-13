@@ -13,6 +13,7 @@ export default function PublicHeader({ view, onNav }) {
     ["explore","Events",Calendar],
     ["how-it-works","How It Works",Zap],
     ["pricing","Pricing",Tag],
+    ["waitlist","Waitlist",Sparkles],
     ["about","About",Info],
     ["contact","Contact",MessageSquare],
   ];

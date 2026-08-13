@@ -110,6 +110,24 @@ router.post("/:id/register", apiLimiter, async (req, res, next) => {
     }
 
     const existing = toEvent(row);
+
+    // One free ticket per person per event — matched by email, since that's
+    // the one identifier every registration form collects. Paid tickets are
+    // exempt: someone might legitimately buy more than one paid ticket
+    // (for a friend, for their table, etc.), but a free RSVP is the kind of
+    // thing people should only be able to grab once.
+    const isFreeTicket = !ticket.ticketPrice || ticket.ticketPrice === 0;
+    if (isFreeTicket && ticket.holderEmail) {
+      const emailNorm = String(ticket.holderEmail).trim().toLowerCase();
+      const alreadyRegistered = existing.tickets.some(t =>
+        String(t.holderEmail||"").trim().toLowerCase() === emailNorm &&
+        (!t.ticketPrice || t.ticketPrice === 0)
+      );
+      if (alreadyRegistered) {
+        return res.status(409).json({ error: "This email has already registered for this event." });
+      }
+    }
+
     const updated = { ...existing, tickets: [...existing.tickets, ticket] };
     const { error: saveErr } = await supabaseAdmin.from("events").upsert(fromEvent(updated));
     if (saveErr) throw saveErr;

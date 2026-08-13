@@ -4,10 +4,10 @@ import { requireAuth, requireAdmin } from "../middleware/auth.js";
 import { db, schema, pool } from "../db/index.js";
 import { walletService } from "../services/walletService.js";
 import { korapayTransferService } from "../services/korapayTransferService.js";
-import { calcOrganizerEarningNaira } from "../utils/fees.js";
+import { calcOrganizerEarningNaira, getEffectiveServiceChargePct } from "../utils/fees.js";
 import { emailService } from "../services/emailService.js";
 
-const { organizers, users, withdrawals } = schema;
+const { organizers, users, withdrawals, discountCodes, waitlistSignups } = schema;
 const router = Router();
 
 // Every route below requires a logged-in admin.
@@ -233,7 +233,7 @@ router.post("/bank-transfers/confirm", async (req, res, next) => {
     tickets[idx] = { ...ticket, status: "unused", paymentStatus: "paid" };
     await pool.query(`UPDATE events SET tickets = $1::jsonb WHERE id = $2`, [JSON.stringify(tickets), eventId]);
 
-    const earningNaira = calcOrganizerEarningNaira(Number(ticket.ticketPrice || 0), ticket.feeMode);
+    const earningNaira = calcOrganizerEarningNaira(Number(ticket.ticketPrice || 0), ticket.feeMode, await getEffectiveServiceChargePct(orgId));
     if (earningNaira > 0) {
       await walletService.creditForTicketSale({
         orgId, amountKobo: Math.round(earningNaira * 100),
@@ -265,6 +265,112 @@ router.post("/bank-transfers/reject", async (req, res, next) => {
     tickets[idx] = { ...tickets[idx], status: "rejected", paymentStatus: "rejected", rejectReason: reason || null };
     await pool.query(`UPDATE events SET tickets = $1::jsonb WHERE id = $2`, [JSON.stringify(tickets), eventId]);
     res.json({ message: "Payment rejected" });
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Discount codes
+// ═══════════════════════════════════════════════════════════════
+
+function randomCode(prefix = "EVN") {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous 0/O/1/I
+  let suffix = "";
+  for (let i = 0; i < 6; i++) suffix += chars[Math.floor(Math.random() * chars.length)];
+  return `${prefix}-${suffix}`;
+}
+
+// ── GET /api/admin/discount-codes ────────────────────────────────
+router.get("/discount-codes", async (req, res, next) => {
+  try {
+    const rows = await db.select().from(discountCodes).orderBy(desc(discountCodes.createdAt));
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/admin/discount-codes ───────────────────────────────
+// Body: { code?, discountPct, maxRedemptions?, maxRedemptionsPerOrg?,
+//         restrictedToOrgId?, expiresAt?, notes? }
+// `code` is optional — if omitted, a random one is generated so admins
+// don't have to invent something memorable for a one-off promo.
+router.post("/discount-codes", async (req, res, next) => {
+  try {
+    const { code, discountPct, maxRedemptions, maxRedemptionsPerOrg, restrictedToOrgId, expiresAt, notes } = req.body;
+    const pct = Number(discountPct);
+    if (!pct || pct <= 0 || pct > 100) {
+      return res.status(400).json({ error: "discountPct must be a number between 1 and 100" });
+    }
+
+    const finalCode = (code && code.trim() ? code.trim() : randomCode()).toUpperCase();
+
+    const [row] = await db.insert(discountCodes).values({
+      code: finalCode,
+      discountPct: Math.round(pct),
+      maxRedemptions: maxRedemptions != null ? Number(maxRedemptions) : null,
+      maxRedemptionsPerOrg: maxRedemptionsPerOrg != null ? Number(maxRedemptionsPerOrg) : 1,
+      restrictedToOrgId: restrictedToOrgId || null,
+      expiresAt: expiresAt ? new Date(expiresAt) : null,
+      notes: notes || null,
+      createdBy: req.user.id,
+    }).returning();
+
+    res.status(201).json(row);
+  } catch (err) {
+    if (err.code === "23505") return res.status(409).json({ error: "That code already exists — try a different one." });
+    next(err);
+  }
+});
+
+// ── PATCH /api/admin/discount-codes/:id ──────────────────────────
+// Toggle active/inactive, tweak limits, extend/shorten expiry, etc.
+router.patch("/discount-codes/:id", async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const allowed = ["discountPct", "maxRedemptions", "maxRedemptionsPerOrg", "active", "expiresAt", "notes"];
+    const updates = {};
+    for (const k of allowed) {
+      if (k in req.body) updates[k] = k === "expiresAt" && req.body[k] ? new Date(req.body[k]) : req.body[k];
+    }
+    if (!Object.keys(updates).length) return res.status(400).json({ error: "No valid fields to update" });
+
+    const [row] = await db.update(discountCodes).set(updates).where(eq(discountCodes.id, id)).returning();
+    if (!row) return res.status(404).json({ error: "Discount code not found" });
+    res.json(row);
+  } catch (err) { next(err); }
+});
+
+// ── DELETE /api/admin/discount-codes/:id ─────────────────────────
+router.delete("/discount-codes/:id", async (req, res, next) => {
+  try {
+    const [row] = await db.delete(discountCodes).where(eq(discountCodes.id, req.params.id)).returning();
+    if (!row) return res.status(404).json({ error: "Discount code not found" });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Waitlist
+// ═══════════════════════════════════════════════════════════════
+
+// ── GET /api/admin/waitlist ───────────────────────────────────────
+router.get("/waitlist", async (req, res, next) => {
+  try {
+    const rows = await db.select().from(waitlistSignups).orderBy(desc(waitlistSignups.createdAt));
+    res.json(rows);
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /api/admin/waitlist/:id ─────────────────────────────────
+// Mainly for marking someone "invited" once you've sent them a code, or
+// "converted" once they've actually registered an organizer account.
+router.patch("/waitlist/:id", async (req, res, next) => {
+  try {
+    const { status } = req.body;
+    if (!["pending", "invited", "converted"].includes(status)) {
+      return res.status(400).json({ error: "status must be pending, invited, or converted" });
+    }
+    const [row] = await db.update(waitlistSignups).set({ status }).where(eq(waitlistSignups.id, req.params.id)).returning();
+    if (!row) return res.status(404).json({ error: "Waitlist entry not found" });
+    res.json(row);
   } catch (err) { next(err); }
 });
 

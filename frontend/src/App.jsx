@@ -17,9 +17,11 @@ import Landing from './pages/Landing.jsx';
 import HowItWorks from './pages/HowItWorks.jsx';
 import About from "./pages/About.jsx";
 import Contact from "./pages/Contact.jsx";
+import Waitlist from "./pages/Waitlist.jsx";
 import Pricing from "./pages/Pricing.jsx";
 import Wallet from "./pages/organizer/Wallet.jsx";
 import AdminWithdrawals from "./pages/admin/AdminWithdrawals.jsx";
+import AdminDiscountCodes from "./pages/admin/AdminDiscountCodes.jsx";
 import AdminBankTransfers from "./pages/admin/AdminBankTransfers.jsx";
 import Explore from "./pages/Explore.jsx";
 import PublicEventPage from "./pages/PublicEventPage.jsx";
@@ -429,7 +431,7 @@ export default function App() {
   const org = user ? getOrg(user) : null;
   const ev  = events.find(e => e.id === evParam);
 
-  const PUBLIC_VIEWS = ["landing","explore","about","contact","how-it-works","pricing","public-event","register","login","verify-email","forgot-password"];
+  const PUBLIC_VIEWS = ["landing","explore","about","contact","how-it-works","pricing","public-event","register","login","verify-email","forgot-password","waitlist"];
   const isPublic = !user || PUBLIC_VIEWS.includes(view);
 
   if (loading) return (
@@ -455,14 +457,18 @@ export default function App() {
             holderPhone: "", status: "unused", customData: reg.data,
             registeredAt: new Date().toISOString(),
           };
-          setEvents(evs => evs.map(e => {
-            if (e.id !== evId) return e;
-            const updated = { ...e, tickets: [...e.tickets, tkt] };
-            return updated;
-          }));
-          api.registerForEvent(evId, tkt).catch(e => {
-            console.error(e);
-            notify("Your registration didn't save properly — please contact the organizer.", "error");
+          // NOTE: intentionally not updating local `events` state until the
+          // server confirms — this is a real write (it can be rejected,
+          // e.g. a duplicate free-ticket registration), and PublicEventPage
+          // awaits this promise to decide whether to show its success
+          // screen. Optimistically showing success before the server
+          // confirms would let someone see a "you're registered!" screen
+          // for a registration that was actually rejected.
+          return api.registerForEvent(evId, tkt).then(() => {
+            setEvents(evs => evs.map(e => {
+              if (e.id !== evId) return e;
+              return { ...e, tickets: [...e.tickets, tkt] };
+            }));
           });
         }} notify={notify} />
     );
@@ -473,6 +479,7 @@ export default function App() {
     if (view === "pricing")   return <Pricing onNav={nav} />;
     if (view === "about")    return <About onNav={nav} />;
     if (view === "contact")  return <Contact notify={notify} />;
+    if (view === "waitlist") return <Waitlist notify={notify} />;
     if (view === "explore")  return <Explore events={events} onEventPage={id => nav("public-event", id)} />;
 
     if (!user || view === "landing")
@@ -482,6 +489,7 @@ export default function App() {
     if (user.role === "admin") {
       if (view === "admin-orgs")     return <AdminOrgs organizers={orgApplications} loading={orgAppsLoading} onApprove={approveOrg} onReject={rejectOrg} />;
       if (view === "admin-payouts")  return <AdminWithdrawals notify={notify} />;
+      if (view === "admin-discount-codes") return <AdminDiscountCodes notify={notify} />;
       if (view === "admin-bank-transfers") return <AdminBankTransfers notify={notify} />;
       if (view === "admin-revenue")  return <AdminRevenue organizers={organizers} events={events} />;
       if (view === "admin-scan-log") return <AdminScanLogView scanLogs={scanLogs} events={events} organizers={organizers} />;
@@ -604,7 +612,7 @@ export default function App() {
           </div>
         </AnimatePresence>
       </div>
-      {showPublicChrome && ["landing","about","contact","explore","how-it-works","pricing"].includes(view) && (
+      {showPublicChrome && ["landing","about","contact","explore","how-it-works","pricing","waitlist"].includes(view) && (
         <PublicFooter onNav={nav} />
       )}
     </div>

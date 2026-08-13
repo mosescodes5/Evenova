@@ -121,7 +121,13 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
       organizerEarning:calcOrganizerEarning(selType?.price||0, event.feeMode),
     };
     const reg = { id:genId("REG"),tId,uId,evId:event.id,typeId:selTypeId,data:formData,holderName,holderEmail,code:ticket.code };
-    onRegister(event.id,reg,ticket);
+    try {
+      await onRegister(event.id,reg,ticket);
+    } catch (e) {
+      setSubmitting(false); setPayStep("form");
+      notify(e?.message || "Registration failed — please try again.", "error");
+      return;
+    }
     if (holderEmail&&payStatus!=="pending") await sendTicketEmail(ticket,event,selType,notify);
     setSuccess({...reg,ticket});
     setSubmitting(false);

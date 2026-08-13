@@ -74,6 +74,19 @@ export const api = {
   rejectWithdrawal: (id, adminNote, token) =>
     request(`/admin/withdrawals/${id}/reject`, { method: "POST", body: { adminNote }, token }),
 
+  // Discount codes — organizer redeems, admin manages
+  getDiscountStatus: (token) => request("/discount-codes/status", { token }),
+  redeemDiscountCode: (code, token) => request("/discount-codes/redeem", { method: "POST", body: { code }, token }),
+  listDiscountCodes: (token) => request("/admin/discount-codes", { token }),
+  createDiscountCode: (payload, token) => request("/admin/discount-codes", { method: "POST", body: payload, token }),
+  updateDiscountCode: (id, payload, token) => request(`/admin/discount-codes/${id}`, { method: "PATCH", body: payload, token }),
+  deleteDiscountCode: (id, token) => request(`/admin/discount-codes/${id}`, { method: "DELETE", token }),
+
+  // Waitlist — public signup, admin review
+  joinWaitlist: (payload) => request("/waitlist", { method: "POST", body: payload }),
+  listWaitlist: (token) => request("/admin/waitlist", { token }),
+  updateWaitlistStatus: (id, status, token) => request(`/admin/waitlist/${id}`, { method: "PATCH", body: { status }, token }),
+
   // Bank transfers — Evenova's own account, never an organizer's
   getPlatformBankDetails: () => request("/payments/bank-details"),
   listPendingBankTransfers: (token) => request("/admin/bank-transfers", { token }),

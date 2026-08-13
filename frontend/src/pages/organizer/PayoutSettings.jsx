@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Landmark, Save, CheckCircle, ShieldCheck } from "lucide-react";
+import { Landmark, Save, CheckCircle, ShieldCheck, Tag } from "lucide-react";
 import { T } from "../../styles/theme.js";
 import { Btn, Card, Inp } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
@@ -40,6 +40,31 @@ export default function PayoutSettings({ org, onSave, notify }) {
   const [resolving, setResolving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [wasSaved, setWasSaved] = useState(false);
+
+  const [feeStatus, setFeeStatus] = useState(null);
+  const [codeInput, setCodeInput] = useState("");
+  const [redeeming, setRedeeming] = useState(false);
+
+  const loadFeeStatus = () => {
+    api.getDiscountStatus(token).then(setFeeStatus).catch(() => {});
+  };
+
+  useEffect(() => { loadFeeStatus(); }, [token]);
+
+  const redeemCode = async () => {
+    if (!codeInput.trim()) return;
+    setRedeeming(true);
+    try {
+      const res = await api.redeemDiscountCode(codeInput.trim(), token);
+      notify(res.message || "Code applied!");
+      setCodeInput("");
+      loadFeeStatus();
+    } catch (e) {
+      notify(e.message || "Couldn't apply that code", "error");
+    } finally {
+      setRedeeming(false);
+    }
+  };
 
   useEffect(() => {
     api.listBanks(token).then(setBanks).catch(() => {});
@@ -92,6 +117,28 @@ export default function PayoutSettings({ org, onSave, notify }) {
           Every ticket sale is collected by Korapay automatically — there's nothing to set up for accepting payments. Just add the bank account below so you can withdraw your balance whenever you're ready.
         </p>
       </div>
+
+      <Section icon={Tag} title="Discount code" subtitle={feeStatus ? `Current service fee: ${feeStatus.effectivePct}%${feeStatus.effectivePct < feeStatus.basePct ? ` (down from ${feeStatus.basePct}%)` : ""}` : "Have a promo code?"}>
+        <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <Inp label="Code" value={codeInput} onChange={setCodeInput} placeholder="WAITLIST5" />
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <Btn sz="md" onClick={redeemCode} disabled={redeeming || !codeInput.trim()}>{redeeming ? "Applying…" : "Apply Code"}</Btn>
+          </div>
+        </div>
+        {feeStatus?.redeemedCodes?.length > 0 && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+            {feeStatus.redeemedCodes.map(c => (
+              <div key={c.code} style={{ fontSize: 12, color: T.muted, display: "flex", gap: 6, alignItems: "center" }}>
+                <CheckCircle size={12} style={{ color: c.active ? T.success : T.muted }} />
+                <span style={{ fontFamily: "monospace", color: T.text }}>{c.code}</span>
+                — {c.discountPct}% off {!c.active && "(no longer active)"}
+              </div>
+            ))}
+          </div>
+        )}
+      </Section>
 
       <Section icon={Landmark} title="Bank account" subtitle="Used to pre-fill withdrawal requests from your Wallet">
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

@@ -15,6 +15,8 @@ export const ticketStatusEnum = pgEnum("ticket_status", ["pending_payment", "unu
 export const walletTxnTypeEnum = pgEnum("wallet_txn_type", ["credit", "debit"]);
 export const withdrawalMethodEnum = pgEnum("withdrawal_method", ["bank", "crypto"]);
 export const withdrawalStatusEnum = pgEnum("withdrawal_status", ["pending", "approved", "paid", "rejected"]);
+export const discountAppliesToEnum = pgEnum("discount_applies_to", ["service_fee"]);
+export const waitlistStatusEnum = pgEnum("waitlist_status", ["pending", "invited", "converted"]);
 
 // ── Organizers (the company/brand running events) ─────────────
 export const organizers = pgTable("organizers", {
@@ -190,4 +192,53 @@ export const walletTransactions = pgTable("wallet_transactions", {
 }, (t) => ({
   orgIdx: index("wallet_txn_org_idx").on(t.orgId),
   refIdx: index("wallet_txn_ref_idx").on(t.paymentRef),
+}));
+
+// ── Discount codes (admin-issued, e.g. waitlist perk: X% off the platform
+// service fee) ──────────────────────────────────────────────────────────
+// "20% off" is applied MULTIPLICATIVELY to the platform's base service-fee
+// percentage — a discountPct=20 code makes a 5%-base fee effectively 4%
+// (5 * (1 - 20/100)), not a flat 5-percentage-point cut. See
+// utils/fees.js#getEffectiveServiceChargePct.
+export const discountCodes = pgTable("discount_codes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  code: varchar("code", { length: 40 }).notNull(),
+  discountPct: integer("discount_pct").notNull(), // 1–100, % off the fee itself
+  appliesTo: discountAppliesToEnum("applies_to").default("service_fee").notNull(),
+  maxRedemptions: integer("max_redemptions"), // null = unlimited total uses
+  maxRedemptionsPerOrg: integer("max_redemptions_per_org").default(1).notNull(),
+  redemptionsCount: integer("redemptions_count").default(0).notNull(),
+  restrictedToOrgId: uuid("restricted_to_org_id").references(() => organizers.id, { onDelete: "cascade" }),
+  active: boolean("active").default(true).notNull(),
+  expiresAt: timestamp("expires_at"),
+  notes: text("notes"), // admin-facing, e.g. "Waitlist launch perk"
+  createdBy: uuid("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  codeIdx: uniqueIndex("discount_codes_code_idx").on(t.code),
+}));
+
+// Every time an organizer redeems a code — enforces per-org limits and
+// gives an audit trail of who's currently benefiting from what.
+export const discountRedemptions = pgTable("discount_redemptions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  codeId: uuid("code_id").references(() => discountCodes.id, { onDelete: "cascade" }).notNull(),
+  orgId: uuid("org_id").references(() => organizers.id, { onDelete: "cascade" }).notNull(),
+  redeemedAt: timestamp("redeemed_at").defaultNow().notNull(),
+}, (t) => ({
+  codeOrgIdx: uniqueIndex("discount_redemptions_code_org_idx").on(t.codeId, t.orgId),
+  orgIdx: index("discount_redemptions_org_idx").on(t.orgId),
+}));
+
+// ── Waitlist (public landing-page signups before full launch) ──────────
+export const waitlistSignups = pgTable("waitlist_signups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  email: varchar("email", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 30 }),
+  hostingPaidEvents: boolean("hosting_paid_events").default(false).notNull(),
+  status: waitlistStatusEnum("status").default("pending").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  emailIdx: uniqueIndex("waitlist_signups_email_idx").on(t.email),
 }));

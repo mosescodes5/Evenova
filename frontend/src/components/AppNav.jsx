@@ -19,6 +19,7 @@ export default function AppNav({ user, onNav, onLogout }) {
     ["admin","Dashboard",LayoutDashboard],["admin-orgs","Organizers",Building],
     ["admin-events","Events",Calendar],["admin-revenue","Revenue",DollarSign],
     ["admin-payouts","Payouts",CreditCard],["admin-bank-transfers","Bank Transfers",Landmark],["admin-scan-log","Scan Log",List],
+    ["admin-discount-codes","Discount Codes",Tag],
     ["email-blast","Email Blast",Zap],["whatsapp-blast","WhatsApp",MessageCircle],
     ["sponsor-blast","Sponsors",Briefcase],
   ];
