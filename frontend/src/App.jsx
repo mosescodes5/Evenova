@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { AnimatePresence } from "framer-motion";
 import { T, EVENT_BANNERS } from "./styles/theme.js";
 import StyleInjector from "./styles/StyleInjector.jsx";
+import InstallPrompt from "./components/InstallPrompt.jsx";
 import { genId, genUUID } from "./utils/crypto.js";
 import { DEFAULT_EVENTS, DEFAULT_ORGS } from "./data/seedData.js";
 import * as db from "./utils/db.js";
@@ -603,6 +604,7 @@ export default function App() {
     <div style={{ minHeight:"100vh", background:T.bg, color:T.text }}>
       <StyleInjector />
       <Toast items={toasts} onClose={removeToast} />
+      <InstallPrompt />
       {showPublicChrome && <PublicHeader view={view} onNav={nav} />}
       {user && !isPublic && <AppNav user={user} onNav={nav} onLogout={logout} />}
       <div style={{ minHeight:"calc(100vh - 58px)" }}>
