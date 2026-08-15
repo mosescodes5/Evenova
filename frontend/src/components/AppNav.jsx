@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Activity,BarChart3,Briefcase,Building,Calendar,CreditCard,DollarSign,Landmark,LayoutDashboard,LogOut,Menu,MessageCircle,Scan,Sparkles,List,Users,Wallet,Zap } from "lucide-react";
-import { GA, T } from "../styles/theme.js";
+import { Activity,BarChart3,Briefcase,Building,Calendar,CreditCard,DollarSign,Landmark,LayoutDashboard,LogOut,Menu,MessageCircle,Scan,List,Users,Wallet,Zap } from "lucide-react";
+import { T } from "../styles/theme.js";
 import { useMedia } from "../hooks/useMedia.js";
 import { ThemeToggle } from "./ThemeToggle.jsx";
 
@@ -38,9 +38,7 @@ export default function AppNav({ user, onNav, onLogout }) {
     <nav style={{ position:"sticky",top:0,zIndex:100 }} className="glass-nav">
       <div style={{ maxWidth:1280,margin:"0 auto",padding:"0 20px",display:"flex",alignItems:"center",height:58,gap:8 }}>
         <button onClick={() => onNav("dashboard")} style={{ display:"flex",alignItems:"center",gap:8,background:"none",border:"none",cursor:"pointer",marginRight:8,flexShrink:0 }}>
-          <div style={{ width:30,height:30,borderRadius:10,background:GA,display:"flex",alignItems:"center",justifyContent:"center" }}>
-            <Sparkles size={14} color="white"/>
-          </div>
+          <img src="/logo-icon.png" alt="" width={30} height={30} style={{ display:"block" }} />
           <span className="outfit hide-mobile" style={{ fontWeight:800,fontSize:18,color:T.text }}>Evenova</span>
         </button>
         {!mobile && <div style={{ display:"flex",gap:2,flex:1,overflowX:"auto" }}>{links.map(([v,l,I]) => navBtn(v,l,I))}</div>}

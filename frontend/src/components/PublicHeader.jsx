@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Calendar, Home, Info, Menu, MessageSquare, Sparkles, Tag, Zap } from "lucide-react";
-import { GA, T } from "../styles/theme.js";
+import { T } from "../styles/theme.js";
 import { Btn } from "../components/ui/index.jsx";
 import { useMedia } from "../hooks/useMedia.js";
 import { ThemeToggle } from "./ThemeToggle.jsx";
@@ -21,9 +21,7 @@ export default function PublicHeader({ view, onNav }) {
     <header className="glass-nav" style={{ position:"fixed",top:0,left:0,right:0,zIndex:200 }}>
       <div style={{ maxWidth:1200,margin:"0 auto",padding:"0 20px",display:"flex",alignItems:"center",height:64,gap:12 }}>
         <button onClick={() => onNav("landing")} style={{ display:"flex",alignItems:"center",gap:8,background:"none",border:"none",cursor:"pointer",marginRight:8 }}>
-          <div style={{ width:36,height:36,borderRadius:12,background:GA,display:"flex",alignItems:"center",justifyContent:"center" }}>
-            <Sparkles size={18} color="white"/>
-          </div>
+          <img src="/logo-icon.png" alt="" width={36} height={36} style={{ display:"block" }} />
           <span className="outfit" style={{ fontWeight:800,fontSize:22,color:T.text }}>Evenova</span>
         </button>
         {!mobile && (

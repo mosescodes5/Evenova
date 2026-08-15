@@ -1,5 +1,5 @@
-import { Mail, MapPin, Phone, Sparkles, Ticket } from "lucide-react";
-import { GA, T } from "../styles/theme.js";
+import { Mail, MapPin, Phone, Ticket } from "lucide-react";
+import { T } from "../styles/theme.js";
 import { useMedia } from "../hooks/useMedia.js";
 
 export default function PublicFooter({ onNav }) {
@@ -16,7 +16,7 @@ export default function PublicFooter({ onNav }) {
           {/* Brand column */}
           <div>
             <button onClick={()=>onNav("landing")} style={{display:"flex",alignItems:"center",gap:8,background:"none",border:"none",cursor:"pointer",marginBottom:16}}>
-              <div style={{width:36,height:36,borderRadius:12,background:GA,display:"flex",alignItems:"center",justifyContent:"center"}}><Sparkles size={18} color="white"/></div>
+              <img src="/logo-icon.png" alt="" width={36} height={36} style={{display:"block"}} />
               <span className="outfit" style={{fontWeight:800,fontSize:22,color:T.text}}>Evenova</span>
             </button>
             <p style={{fontSize:14,color:T.muted,lineHeight:1.8,maxWidth:300,marginBottom:20}}>
