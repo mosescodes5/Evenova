@@ -356,7 +356,7 @@ export default function App() {
     const token = storGet(KEYS.TOKEN, null);
     const p = api.saveEvent(ev, token)
       .then(() => {
-        notify(ev.isWedding ? "Wedding created!" : `Event created with ${ev.tickets.length} signed tickets!`);
+        notify(ev.isWedding ? "Wedding created! Activate it to enable guest RSVPs." : `Event created with ${ev.tickets.length} signed tickets!`);
         return ev;
       })
       .catch(e => {
@@ -365,7 +365,10 @@ export default function App() {
         notify(`Failed to save event: ${e.message || "unknown error"}${e.hint ? ` (${e.hint})` : ""}. Please try again.`, "error");
         throw e; // let callers (e.g. CreateEvent's post-create guest upload) know it didn't actually save
       });
-    nav("dashboard");
+    // Weddings need one more step before they're actually usable (paying
+    // the hosting fee) — send the organizer straight to that, instead of
+    // the dashboard, so it's not a step they have to go hunt for.
+    nav(ev.isWedding ? "event-detail" : "dashboard", ev.id);
     return p;
   };
 
@@ -571,6 +574,8 @@ export default function App() {
         onNav={nav}
         notify={notify}
         onDelete={deleteEvent}
+        userEmail={user?.email}
+        onWeddingActivated={(evId) => setEvents(evs => evs.map(e => e.id === evId ? { ...e, weddingPaid: true } : e))}
         onAddTicket={(evId, ticket) => setEvents(evs => evs.map(e => {
           if (e.id !== evId) return e;
           const updated = { ...e, tickets: [...e.tickets, ticket] };

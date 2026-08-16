@@ -56,6 +56,12 @@ export const api = {
   verifyPayment: (reference, provider, expectedAmountKobo, extra = {}) =>
     request("/payments/verify", { method: "POST", body: { reference, provider, expectedAmountKobo, ...extra } }),
 
+  // Wedding hosting fee — the couple pays this directly to activate their
+  // wedding; guests never pay anything.
+  getWeddingFee: () => request("/payments/wedding-fee"),
+  verifyWeddingFee: (eventId, reference, token) =>
+    request("/payments/verify-wedding-fee", { method: "POST", body: { eventId, reference }, token }),
+
   // Wallet — organizer-facing balance, history, and withdrawals
   getWalletBalance: (token) => request("/wallet/balance", { token }),
   getWalletTransactions: (token) => request("/wallet/transactions", { token }),

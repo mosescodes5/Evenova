@@ -26,6 +26,14 @@ import { discountCodes, discountRedemptions } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 
 export const SERVICE_CHARGE_PCT = 5;
+
+// Weddings work differently from ticketed events: guests never pay
+// anything, so there's no ticket revenue for a percentage fee to apply
+// to. Instead, the couple/organizer pays this flat fee directly to
+// Evenova once, to activate the wedding and enable guest RSVP links.
+// PLACEHOLDER VALUE — pick a real number before launch, this is not a
+// business decision this code can make for you.
+export const WEDDING_HOSTING_FEE_NAIRA = 15000;
 export const FEE_MODE_PASS_THROUGH = "pass_through";
 export const FEE_MODE_ABSORB = "absorb";
 

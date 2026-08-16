@@ -2,8 +2,11 @@ import { Router } from "express";
 import { ticketLimiter } from "../middleware/rateLimiter.js";
 import { paymentsService } from "../services/paymentsService.js";
 import { walletService } from "../services/walletService.js";
-import { calcOrganizerEarningNaira, getEffectiveServiceChargePct } from "../utils/fees.js";
+import { calcOrganizerEarningNaira, getEffectiveServiceChargePct, WEDDING_HOSTING_FEE_NAIRA } from "../utils/fees.js";
 import { config } from "../config.js";
+import { requireAuth, requireOrganizer } from "../middleware/auth.js";
+import { supabaseAdmin } from "../db/supabase.js";
+import { requireSupabase } from "../middleware/requireSupabase.js";
 
 const router = Router();
 
@@ -61,6 +64,53 @@ router.post("/verify", ticketLimiter, async (req, res, next) => {
     }
 
     res.json({ ...result, credited });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/payments/wedding-fee ────────────────────────────────
+// So the frontend never hardcodes the price in two places — it asks the
+// server, which is the actual source of truth used at verification time.
+router.get("/wedding-fee", (req, res) => {
+  res.json({ amountNaira: WEDDING_HOSTING_FEE_NAIRA });
+});
+
+// ── POST /api/payments/verify-wedding-fee ────────────────────────
+// The couple/organizer pays Evenova directly to activate a wedding —
+// guests never pay anything for weddings. This is a flat fee, not a
+// percentage skim off ticket sales (there's no ticket revenue to skim
+// from), so unlike /verify above, nothing gets credited to the
+// organizer's wallet — the payment IS Evenova's revenue, in full.
+//
+// Body: { eventId, reference }
+router.post("/verify-wedding-fee", requireAuth, requireOrganizer, requireSupabase, ticketLimiter, async (req, res, next) => {
+  try {
+    const { eventId, reference } = req.body;
+    if (!eventId || !reference) {
+      return res.status(400).json({ verified: false, reason: "eventId and reference are required" });
+    }
+
+    const { data: event, error: loadErr } = await supabaseAdmin
+      .from("events").select("org_id, is_wedding, wedding_paid").eq("id", eventId).maybeSingle();
+    if (loadErr) throw loadErr;
+    if (!event) return res.status(404).json({ verified: false, reason: "Event not found" });
+    if (req.user.role !== "admin" && event.org_id !== req.user.orgId) {
+      return res.status(403).json({ verified: false, reason: "Not your event" });
+    }
+    if (!event.is_wedding) {
+      return res.status(400).json({ verified: false, reason: "This isn't a wedding event" });
+    }
+    if (event.wedding_paid) {
+      return res.json({ verified: true, alreadyPaid: true });
+    }
+
+    const result = await paymentsService.verifyPayment(reference, "korapay", WEDDING_HOSTING_FEE_NAIRA * 100);
+    if (!result.verified) return res.json(result);
+
+    const { error: updateErr } = await supabaseAdmin
+      .from("events").update({ wedding_paid: true }).eq("id", eventId);
+    if (updateErr) throw updateErr;
+
+    res.json({ verified: true, alreadyPaid: false });
   } catch (err) { next(err); }
 });
 

@@ -163,6 +163,13 @@ router.get("/invite/:eventId/:code", requireSupabase, apiLimiter, async (req, re
     if (error) throw error;
     if (!eventRow) return res.status(404).json({ error: "This wedding's event could not be found" });
 
+    // The couple pays a flat hosting fee to activate their wedding before
+    // guests can see or RSVP to it — same reasoning as not showing a
+    // draft/unpublished event publicly.
+    if (!eventRow.wedding_paid) {
+      return res.status(403).json({ error: "This wedding hasn't been activated by the couple yet — check back soon!" });
+    }
+
     res.json({ guest, event: publicWeddingInfo(toEvent(eventRow)) });
   } catch (err) { next(err); }
 });
@@ -171,7 +178,7 @@ router.get("/invite/:eventId/:code", requireSupabase, apiLimiter, async (req, re
 // Body: { status: "attending"|"declined"|"maybe", attendingCount?, rsvpData? }
 // Guests can change their mind and resubmit — this is an upsert on their
 // own single record, not a one-shot action like ticket issuance.
-router.post("/invite/:eventId/:code/rsvp", apiLimiter, async (req, res, next) => {
+router.post("/invite/:eventId/:code/rsvp", requireSupabase, apiLimiter, async (req, res, next) => {
   try {
     const { eventId, code } = req.params;
     const { status, attendingCount, rsvpData } = req.body;
@@ -183,6 +190,13 @@ router.post("/invite/:eventId/:code/rsvp", apiLimiter, async (req, res, next) =>
     const [guest] = await db.select().from(weddingGuests)
       .where(and(eq(weddingGuests.eventId, eventId), eq(weddingGuests.code, code)));
     if (!guest) return res.status(404).json({ error: "Invite not found" });
+
+    const { data: eventRow, error: evErr } = await supabaseAdmin
+      .from("events").select("wedding_paid").eq("id", eventId).maybeSingle();
+    if (evErr) throw evErr;
+    if (!eventRow?.wedding_paid) {
+      return res.status(403).json({ error: "This wedding hasn't been activated by the couple yet." });
+    }
 
     let finalCount = null;
     if (status === "attending") {

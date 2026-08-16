@@ -1,11 +1,14 @@
-import { useMemo, useState } from "react";
-import { Activity, CheckCircle, ChevronLeft, Clock, Copy, Download, Eye, Globe, Heart, Phone, Plus, QrCode, Scan, Search, Send, Ticket, Trash2, TrendingUp, X } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { Activity, CheckCircle, ChevronLeft, Clock, Copy, Download, Eye, Globe, Heart, Lock, Phone, Plus, QrCode, Scan, Search, Send, Ticket, Trash2, TrendingUp, X } from "lucide-react";
 import { T } from "../../styles/theme.js";
 import { Bdg, Btn, Card, Inp, Modal, QRDisplay, StatCard } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
 import { genId, encodeTicket, verifyQR } from "../../utils/crypto.js";
 import { exportAttendees, exportScanLog } from "../../utils/export.js";
 import { sendEmail, sendTicketEmail } from "../../utils/email.js";
+import { openKorapayCheckout } from "../../utils/payment.js";
+import { api } from "../../utils/api.js";
+import { KEYS, storGet } from "../../utils/storage.js";
 
 function ManualTicketModal({ open, onClose, event, onIssue, notify }) {
   const [form, setForm] = useState({ name:"", email:"", phone:"", typeId:Object.keys(event?.ticketTypes||{})[0]||"", payMethod:"Bank Transfer", payRef:"", notes:"" });
@@ -69,7 +72,7 @@ function ManualTicketModal({ open, onClose, event, onIssue, notify }) {
   );
 }
 
-export default function EventDetail({ event, onBack, onNav, notify, onAddTicket, onDelete }) {
+export default function EventDetail({ event, onBack, onNav, notify, onAddTicket, onDelete, onWeddingActivated, userEmail }) {
   const { mobile } = useMedia();
   const [showQR, setShowQR] = useState(null);
   const [showManual, setShowManual] = useState(false);
@@ -77,6 +80,46 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket,
   const [fGate, setFGate] = useState("all");
   const [fType, setFType] = useState("all");
   const [fStatus, setFStatus] = useState("all");
+  const [weddingFee, setWeddingFee] = useState(null);
+  const [activating, setActivating] = useState(false);
+
+  useEffect(() => {
+    if (event.isWedding && !event.weddingPaid) {
+      api.getWeddingFee().then(r => setWeddingFee(r.amountNaira)).catch(() => {});
+    }
+  }, [event.isWedding, event.weddingPaid]);
+
+  const activateWedding = async () => {
+    const token = storGet(KEYS.TOKEN, null);
+    setActivating(true);
+    try {
+      await openKorapayCheckout({
+        email: userEmail || "",
+        name: event.coupleNames ? `${event.coupleNames.partner1} & ${event.coupleNames.partner2}` : event.title,
+        amount: weddingFee,
+        eventTitle: event.title,
+        onSuccess: async (reference) => {
+          try {
+            const result = await api.verifyWeddingFee(event.id, reference, token);
+            if (result.verified) {
+              notify("Wedding activated! Guest RSVP links are live.");
+              onWeddingActivated?.(event.id);
+            } else {
+              notify(result.reason || "Payment couldn't be verified — please contact support before trying again.", "error");
+            }
+          } catch (e) {
+            notify(e.message || "Couldn't verify payment", "error");
+          } finally {
+            setActivating(false);
+          }
+        },
+        onClose: () => setActivating(false),
+      });
+    } catch (e) {
+      notify(e.message || "Couldn't open checkout", "error");
+      setActivating(false);
+    }
+  };
 
   const used    = event.tickets.filter(t=>t.status==="used").length;
   const pending = event.tickets.filter(t=>t.paymentStatus==="pending");
@@ -118,6 +161,35 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket,
           <Btn sz="sm" v="secondary" onClick={handleDelete} style={{color:T.danger,borderColor:T.danger+"40"}}><Trash2 size={13}/>Delete Event</Btn>
         </div>
       </div>
+
+      {event.isWedding && !event.weddingPaid && (
+        <Card style={{padding:20,marginBottom:20,border:`1.5px solid #ec489950`,background:"#ec489910"}}>
+          <div style={{display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",justifyContent:"space-between"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{width:40,height:40,borderRadius:12,background:"#ec489922",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <Lock size={17} style={{color:"#ec4899"}}/>
+              </div>
+              <div>
+                <p style={{fontSize:14,fontWeight:700,color:T.text}}>Activate your wedding to enable guest RSVPs</p>
+                <p style={{fontSize:12.5,color:T.muted,marginTop:2}}>
+                  Guests can't see or RSVP to their invites until this is paid{weddingFee?` — a one-time ₦${weddingFee.toLocaleString()} hosting fee`:""}.
+                </p>
+              </div>
+            </div>
+            <Btn onClick={activateWedding} disabled={activating || !weddingFee} v="gold">
+              {activating ? "Processing…" : weddingFee ? `Activate — ₦${weddingFee.toLocaleString()}` : "Loading…"}
+            </Btn>
+          </div>
+        </Card>
+      )}
+      {event.isWedding && event.weddingPaid && (
+        <Card style={{padding:14,marginBottom:20,border:`1px solid ${T.success}40`,background:T.success+"10"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <CheckCircle size={16} style={{color:T.success}}/>
+            <p style={{fontSize:13,color:T.success,fontWeight:600}}>Your wedding is active — guest invite links are live.</p>
+          </div>
+        </Card>
+      )}
 
       {/* Reg link */}
       <Card style={{padding:14,marginBottom:20}}>
