@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Activity,BarChart3,Briefcase,Building,Calendar,CreditCard,DollarSign,Landmark,LayoutDashboard,LogOut,Menu,MessageCircle,Scan,List,Users,Wallet,Zap } from "lucide-react";
+import { Activity,BarChart3,Briefcase,Building,Calendar,CreditCard,DollarSign,Landmark,LayoutDashboard,LogOut,Menu,MessageCircle,Scan,List,Tag,Users,Wallet,Zap } from "lucide-react";
 import { T } from "../styles/theme.js";
 import { useMedia } from "../hooks/useMedia.js";
 import { ThemeToggle } from "./ThemeToggle.jsx";
@@ -35,7 +35,7 @@ export default function AppNav({ user, onNav, onLogout }) {
   );
 
   return (
-    <nav style={{ position:"sticky",top:0,zIndex:100 }} className="glass-nav">
+    <nav style={{ position:"sticky",top:0,zIndex:100 }} className="glass-nav safe-top">
       <div style={{ maxWidth:1280,margin:"0 auto",padding:"0 20px",display:"flex",alignItems:"center",height:58,gap:8 }}>
         <button onClick={() => onNav("dashboard")} style={{ display:"flex",alignItems:"center",gap:8,background:"none",border:"none",cursor:"pointer",marginRight:8,flexShrink:0 }}>
           <img src="/logo-icon.png" alt="" width={30} height={30} style={{ display:"block" }} />

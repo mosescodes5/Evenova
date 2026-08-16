@@ -3,6 +3,7 @@ import { Scan, Star, Trash2, UserCheck, UserPlus, Users } from "lucide-react";
 import { GA, T } from "../../styles/theme.js";
 import { Bdg, Btn, Card, Inp, StatCard } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
+import { genId } from "../../utils/crypto.js";
 
 export default function TeamManagement({ org, events, onAddStaff, onRemoveStaff, scanLogs = [] }) {
   const { mobile } = useMedia();

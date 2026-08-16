@@ -10,13 +10,14 @@
 import { Router } from "express";
 import { eq, and, count } from "drizzle-orm";
 import { requireAuth, requireOrganizer } from "../middleware/auth.js";
+import { apiLimiter } from "../middleware/rateLimiter.js";
 import { db, schema } from "../db/index.js";
 import { SERVICE_CHARGE_PCT, getEffectiveServiceChargePct } from "../utils/fees.js";
 
 const { discountCodes, discountRedemptions } = schema;
 const router = Router();
 
-router.use(requireAuth, requireOrganizer);
+router.use(requireAuth, requireOrganizer, apiLimiter);
 
 // ── GET /api/discount-codes/status ────────────────────────────────
 // What fee rate does this organizer currently get, and what have they

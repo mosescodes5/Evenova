@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle, Download, Scan, Search, XCircle } from "luc
 import { T } from "../../styles/theme.js";
 import { Btn, Card, StatCard } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
+import { exportScanLog } from "../../utils/export.js";
 
 export default function AdminScanLogView({ scanLogs, events, organizers }) {
   const { mobile } = useMedia();

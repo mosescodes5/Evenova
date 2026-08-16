@@ -36,7 +36,7 @@ export function Btn({ children, onClick, v = "primary", sz = "md", full, disable
 
 export function Inp({ label, value, onChange, type="text", placeholder="", required, hint, options, rows=3 }) {
   const [focused, setFocus] = useState(false);
-  const base = { width:"100%", padding:"10px 14px", borderRadius:10, fontSize:14,
+  const base = { width:"100%", padding:"11px 14px", borderRadius:10, fontSize:16,
     color:T.text, background:T.surface, border:`1px solid ${focused?T.accent:T.border}`,
     transition:"border .18s", fontFamily:"inherit" };
   return (

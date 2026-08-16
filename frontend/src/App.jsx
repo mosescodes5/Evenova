@@ -614,13 +614,13 @@ export default function App() {
   const showPublicChrome = isPublic && view !== "verify-email";
 
   return (
-    <div style={{ minHeight:"100vh", background:T.bg, color:T.text }}>
+    <div className="min-full-height" style={{ background:T.bg, color:T.text }}>
       <StyleInjector />
       <Toast items={toasts} onClose={removeToast} />
       <InstallPrompt />
       {showPublicChrome && <PublicHeader view={view} onNav={nav} />}
       {user && !isPublic && <AppNav user={user} onNav={nav} onLogout={logout} />}
-      <div style={{ minHeight:"calc(100vh - 58px)" }}>
+      <div style={{ minHeight:"calc(100dvh - 58px)" }}>
         <AnimatePresence mode="wait" initial={false}>
           <div key={view}>
             {renderScreen()}

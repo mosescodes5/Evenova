@@ -7,7 +7,7 @@ import { useEffect } from "react";
 export const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; overflow-x: hidden; }
   * { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
   .outfit { font-family: 'Outfit', system-ui, sans-serif !important; }
   ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -69,7 +69,39 @@ export const GLOBAL_CSS = `
     color: var(--ev-text);
     -webkit-font-smoothing: antialiased;
     transition: background 0.28s ease, color 0.28s ease;
+    overscroll-behavior-y: none;
+    overflow-x: hidden;
   }
+
+  /* ── Native-app feel on touch devices ──────────────────────
+     Without these, every tap flashes a gray highlight box and text
+     gets accidentally selected on long-press — both read as "this is
+     a website", not an app. */
+  * { -webkit-tap-highlight-color: transparent; }
+  button, a, [role="button"] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input, textarea, select { -webkit-user-select: text; user-select: text; }
+
+  /* ── iOS safe areas ─────────────────────────────────────────
+     apple-mobile-web-app-status-bar-style is "black-translucent"
+     (see index.html), which makes web content draw UNDER the status
+     bar / notch / home-indicator area entirely. Without this padding,
+     fixed headers sit behind the notch and fixed footers sit behind
+     the home-indicator bar on notched iPhones — most noticeable once
+     installed via "Add to Home Screen". */
+  .safe-top    { padding-top: env(safe-area-inset-top, 0px); }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+  /* Dynamic viewport height — 100vh is measured against the LARGEST
+     possible viewport on mobile (toolbars collapsed), so it's taller
+     than what's actually visible when the address bar is showing,
+     leaving unwanted scroll/clipped content. 100dvh tracks the real
+     visible area; vh stays as the fallback for older browsers. */
+  .full-height { height: 100vh; height: 100dvh; }
+  .min-full-height { min-height: 100vh; min-height: 100dvh; }
 
   /* ── Animations ── */
   @keyframes fadeUp   { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:none } }

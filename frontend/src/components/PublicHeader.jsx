@@ -18,7 +18,7 @@ export default function PublicHeader({ view, onNav }) {
     ["contact","Contact",MessageSquare],
   ];
   return (
-    <header className="glass-nav" style={{ position:"fixed",top:0,left:0,right:0,zIndex:200 }}>
+    <header className="glass-nav safe-top" style={{ position:"fixed",top:0,left:0,right:0,zIndex:200 }}>
       <div style={{ maxWidth:1200,margin:"0 auto",padding:"0 20px",display:"flex",alignItems:"center",height:64,gap:12 }}>
         <button onClick={() => onNav("landing")} style={{ display:"flex",alignItems:"center",gap:8,background:"none",border:"none",cursor:"pointer",marginRight:8 }}>
           <img src="/logo-icon.png" alt="" width={36} height={36} style={{ display:"block" }} />

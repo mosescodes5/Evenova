@@ -73,7 +73,7 @@ export default function InstallPrompt() {
 
   return (
     <div style={{
-      position: "fixed", left: 12, right: 12, bottom: 12, zIndex: 9999,
+      position: "fixed", left: 12, right: 12, bottom: "calc(12px + env(safe-area-inset-bottom, 0px))", zIndex: 9999,
       maxWidth: 420, margin: "0 auto",
       background: T.card, border: `1px solid ${T.border}`, borderRadius: 16,
       padding: "14px 16px", boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
