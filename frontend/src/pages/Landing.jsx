@@ -11,7 +11,7 @@ export default function Landing({ events, onNav, onEventPage }) {
   const { mobile, tablet } = useMedia();
   const [cat, setCat] = useState("All");
   const cats = ["All", "Music", "Technology", "Food & Drinks", "Arts"];
-  const filtered = cat === "All" ? events : events.filter(e => e.category === cat);
+  const filtered = cat === "All" ? events.filter(e=>!e.isWedding) : events.filter(e => !e.isWedding && e.category === cat);
 
   const STATS = [
     { v: "12,480+", l: "Tickets Sold",  c: T.accent  },
@@ -106,7 +106,7 @@ export default function Landing({ events, onNav, onEventPage }) {
             {/* Floating event cards */}
             {!tablet && (
               <div className="hero-cards" style={{ position: "relative", height: 460 }}>
-                {events.filter(e => e.featured).slice(0, 2).map((ev, i) => {
+                {events.filter(e => e.featured && !e.isWedding).slice(0, 2).map((ev, i) => {
                   const minP = Math.min(...Object.values(ev.ticketTypes).map(t => t.price));
                   return (
                     <motion.div

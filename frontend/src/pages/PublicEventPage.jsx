@@ -73,6 +73,26 @@ export default function PublicEventPage({ event, onBack, onRegister, notify }) {
   const [payStep, setPayStep] = useState("form");
   const [success, setSuccess] = useState(null);
 
+  // Weddings don't have a public ticket-buying page at all — they're only
+  // reachable via each guest's own personal RSVP link (see WeddingRSVP.jsx).
+  // Someone stumbling onto the generic /event/:id URL for a wedding (e.g.
+  // a guest who bookmarked or forwarded the wrong link) would otherwise
+  // hit a broken ticket-selection flow, since ticketTypes is intentionally
+  // empty for weddings.
+  if (event.isWedding) {
+    return (
+      <div style={{ minHeight:"70vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+        <Card style={{ padding:32, maxWidth:420, textAlign:"center" }}>
+          <p style={{ fontSize:15, fontWeight:700, color:T.text, marginBottom:8 }}>This is a private wedding</p>
+          <p style={{ fontSize:13, color:T.muted, marginBottom:20 }}>
+            {event.title} isn't open for public registration — you'll need the personal invite link the couple sent you.
+          </p>
+          <Btn v="secondary" onClick={onBack}><ChevronLeft size={14}/>Back</Btn>
+        </Card>
+      </div>
+    );
+  }
+
   const selType = event.ticketTypes[selTypeId];
   const isFree = !selType?.price||selType.price===0;
   const setF = (id,v) => setFormData(f=>({...f,[id]:v}));

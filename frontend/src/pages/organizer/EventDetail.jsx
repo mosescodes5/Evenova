@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Activity, CheckCircle, ChevronLeft, Clock, Copy, Download, Eye, Globe, Phone, Plus, QrCode, Scan, Search, Send, Ticket, Trash2, TrendingUp, X } from "lucide-react";
+import { Activity, CheckCircle, ChevronLeft, Clock, Copy, Download, Eye, Globe, Heart, Phone, Plus, QrCode, Scan, Search, Send, Ticket, Trash2, TrendingUp, X } from "lucide-react";
 import { T } from "../../styles/theme.js";
 import { Bdg, Btn, Card, Inp, Modal, QRDisplay, StatCard } from "../../components/ui/index.jsx";
 import { useMedia } from "../../hooks/useMedia.js";
@@ -113,6 +113,7 @@ export default function EventDetail({ event, onBack, onNav, notify, onAddTicket,
           <Btn sz="sm" v="secondary" onClick={()=>exportAttendees(event)}><Download size={13}/>Export CSV</Btn>
           <Btn sz="sm" v="secondary" onClick={()=>onNav("scanner",event.id)}><Scan size={13}/>Scanner</Btn>
           <Btn sz="sm" v="secondary" onClick={()=>setShowManual(true)}><Plus size={13}/>Manual Ticket</Btn>
+          {event.isWedding && <Btn sz="sm" onClick={()=>onNav("wedding-guests",event.id)}><Heart size={13}/>Guest List</Btn>}
           <Btn sz="sm" onClick={()=>onNav("live",event.id)}><Activity size={13}/>Live Stats</Btn>
           <Btn sz="sm" v="secondary" onClick={handleDelete} style={{color:T.danger,borderColor:T.danger+"40"}}><Trash2 size={13}/>Delete Event</Btn>
         </div>

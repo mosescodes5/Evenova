@@ -19,6 +19,7 @@ import HowItWorks from './pages/HowItWorks.jsx';
 import About from "./pages/About.jsx";
 import Contact from "./pages/Contact.jsx";
 import Waitlist from "./pages/Waitlist.jsx";
+import WeddingRSVP from "./pages/WeddingRSVP.jsx";
 import Pricing from "./pages/Pricing.jsx";
 import Wallet from "./pages/organizer/Wallet.jsx";
 import AdminWithdrawals from "./pages/admin/AdminWithdrawals.jsx";
@@ -41,6 +42,7 @@ import WhatsAppBlast from "./pages/admin/WhatsAppBlast.jsx";
 import OrgDashboard from "./pages/organizer/OrgDashboard.jsx";
 import CreateEvent from "./pages/organizer/CreateEvent.jsx";
 import EventDetail from "./pages/organizer/EventDetail.jsx";
+import WeddingGuests from "./pages/organizer/WeddingGuests.jsx";
 import RevenueDashboard from "./pages/organizer/RevenueDashboard.jsx";
 import ScanLog from "./pages/organizer/ScanLog.jsx";
 import TeamManagement from "./pages/organizer/TeamManagement.jsx";
@@ -55,12 +57,15 @@ import PayoutSettings from "./pages/organizer/PayoutSettings.jsx";
    that state into the real URL (via the History API) so pages have proper
    shareable paths like /contact, /about, /login instead of staying on "/".
    A couple of views get friendlier path names than their internal view id. */
-const VIEW_TO_PATH  = { landing: "/", "public-event": "event" };
-const PATH_TO_VIEW  = { event: "public-event" };
+const VIEW_TO_PATH  = { landing: "/", "public-event": "event", "wedding-rsvp": "rsvp" };
+const PATH_TO_VIEW  = { event: "public-event", rsvp: "wedding-rsvp" };
 
 function buildPath(view, param) {
   const base = VIEW_TO_PATH[view] || view;
   if (base === "/") return "/";
+  if (view === "wedding-rsvp" && param && typeof param === "object") {
+    return `/${base}/${param.eventId}/${param.code}`;
+  }
   const id = param && typeof param === "object" ? param.id : param;
   return `/${base}${id ? `/${id}` : ""}`;
 }
@@ -68,8 +73,9 @@ function buildPath(view, param) {
 function parsePath(pathname) {
   const parts = pathname.split("/").filter(Boolean);
   if (parts.length === 0) return { view: "landing", param: null };
-  const [first, second] = parts;
+  const [first, second, third] = parts;
   const view = PATH_TO_VIEW[first] || first;
+  if (view === "wedding-rsvp") return { view, param: { eventId: second, code: third } };
   return { view, param: second || null };
 }
 
@@ -348,14 +354,19 @@ export default function App() {
   const createEvent = ev => {
     setEvents(e => [...e, ev]);
     const token = storGet(KEYS.TOKEN, null);
-    api.saveEvent(ev, token)
-      .then(() => notify(`Event created with ${ev.tickets.length} signed tickets!`))
+    const p = api.saveEvent(ev, token)
+      .then(() => {
+        notify(ev.isWedding ? "Wedding created!" : `Event created with ${ev.tickets.length} signed tickets!`);
+        return ev;
+      })
       .catch(e => {
         console.error(e);
         setEvents(evs => evs.filter(x => x.id !== ev.id));
         notify(`Failed to save event: ${e.message || "unknown error"}${e.hint ? ` (${e.hint})` : ""}. Please try again.`, "error");
+        throw e; // let callers (e.g. CreateEvent's post-create guest upload) know it didn't actually save
       });
     nav("dashboard");
+    return p;
   };
 
   const deleteEvent = evId => {
@@ -432,7 +443,7 @@ export default function App() {
   const org = user ? getOrg(user) : null;
   const ev  = events.find(e => e.id === evParam);
 
-  const PUBLIC_VIEWS = ["landing","explore","about","contact","how-it-works","pricing","public-event","register","login","verify-email","forgot-password","waitlist"];
+  const PUBLIC_VIEWS = ["landing","explore","about","contact","how-it-works","pricing","public-event","register","login","verify-email","forgot-password","waitlist","wedding-rsvp"];
   const isPublic = !user || PUBLIC_VIEWS.includes(view);
 
   if (loading) return (
@@ -481,6 +492,7 @@ export default function App() {
     if (view === "about")    return <About onNav={nav} />;
     if (view === "contact")  return <Contact notify={notify} />;
     if (view === "waitlist") return <Waitlist notify={notify} />;
+    if (view === "wedding-rsvp") return <WeddingRSVP eventId={evParam?.eventId} code={evParam?.code} notify={notify} />;
     if (view === "explore")  return <Explore events={events} onEventPage={id => nav("public-event", id)} />;
 
     if (!user || view === "landing")
@@ -569,6 +581,7 @@ export default function App() {
           return updated;
         }))}
       /> : null,
+      "wedding-guests": ev ? <WeddingGuests event={ev} onBack={() => nav("event-detail", ev.id)} notify={notify} /> : null,
       team:          <TeamManagement org={activeOrg} events={events} onAddStaff={m => addStaff(activeOrg.id, m)} onRemoveStaff={sid => removeStaff(activeOrg.id, sid)} scanLogs={scanLogs} />,
       scanner:       <Scanner events={events} scanned={scanned} offlineMode={offline} onToggleOffline={() => setOffline(o => !o)} onScan={handleScan} onCacheDownload={() => notify("Cache downloaded", "info")} orgId={activeOrg.id} user={user} />,
       live:          <LiveDashboard events={events} orgId={activeOrg.id} />,

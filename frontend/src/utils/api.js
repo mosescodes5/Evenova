@@ -87,6 +87,15 @@ export const api = {
   listWaitlist: (token) => request("/admin/waitlist", { token }),
   updateWaitlistStatus: (id, status, token) => request(`/admin/waitlist/${id}`, { method: "PATCH", body: { status }, token }),
 
+  // Wedding guest list — organizer manages, guests RSVP via their personal link
+  listWeddingGuests: (eventId, token) => request(`/wedding-guests/manage/${eventId}`, { token }),
+  addWeddingGuest: (eventId, guest, token) => request(`/wedding-guests/manage/${eventId}`, { method: "POST", body: guest, token }),
+  addWeddingGuestsBulk: (eventId, guests, token) => request(`/wedding-guests/manage/${eventId}/bulk`, { method: "POST", body: { guests }, token }),
+  updateWeddingGuest: (eventId, guestId, updates, token) => request(`/wedding-guests/manage/${eventId}/${guestId}`, { method: "PATCH", body: updates, token }),
+  deleteWeddingGuest: (eventId, guestId, token) => request(`/wedding-guests/manage/${eventId}/${guestId}`, { method: "DELETE", token }),
+  getWeddingInvite: (eventId, code) => request(`/wedding-guests/invite/${eventId}/${code}`),
+  submitRsvp: (eventId, code, payload) => request(`/wedding-guests/invite/${eventId}/${code}/rsvp`, { method: "POST", body: payload }),
+
   // Bank transfers — Evenova's own account, never an organizer's
   getPlatformBankDetails: () => request("/payments/bank-details"),
   listPendingBankTransfers: (token) => request("/admin/bank-transfers", { token }),

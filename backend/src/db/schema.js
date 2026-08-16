@@ -17,6 +17,7 @@ export const withdrawalMethodEnum = pgEnum("withdrawal_method", ["bank", "crypto
 export const withdrawalStatusEnum = pgEnum("withdrawal_status", ["pending", "approved", "paid", "rejected"]);
 export const discountAppliesToEnum = pgEnum("discount_applies_to", ["service_fee"]);
 export const waitlistStatusEnum = pgEnum("waitlist_status", ["pending", "invited", "converted"]);
+export const rsvpStatusEnum = pgEnum("rsvp_status", ["pending", "attending", "declined", "maybe"]);
 
 // ── Organizers (the company/brand running events) ─────────────
 export const organizers = pgTable("organizers", {
@@ -241,4 +242,38 @@ export const waitlistSignups = pgTable("waitlist_signups", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   emailIdx: uniqueIndex("waitlist_signups_email_idx").on(t.email),
+}));
+
+// ── Wedding guest list (personal named RSVP invites) ────────────────────
+// Deliberately its OWN table, kept separate from the "events" data that
+// flows through the public events_public Supabase view: that view is read
+// directly by the frontend with the anon key, so ANYTHING in it is
+// effectively public to the whole internet. Guest names and each guest's
+// private invite `code` must never end up there — a leaked code would let
+// a stranger view/RSVP as someone else's invite. This table is only ever
+// touched through the backend's authenticated (organizer) or
+// narrowly-scoped (single-guest-by-code) routes in routes/weddingGuests.js.
+//
+// eventId intentionally has no Drizzle .references() — it points at the
+// real, live "events" table, which is the legacy Supabase-managed flat
+// table (see db/legacyMappers.js), not the unused Drizzle-modeled `events`
+// table above. The actual FK constraint is still added at the SQL level
+// in the migration file itself, Postgres enforces it either way.
+export const weddingGuests = pgTable("wedding_guests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  eventId: uuid("event_id").notNull(),
+  orgId: uuid("org_id").references(() => organizers.id, { onDelete: "cascade" }).notNull(),
+  name: varchar("name", { length: 200 }).notNull(),
+  partyLabel: varchar("party_label", { length: 200 }), // e.g. "The Smith Family"
+  maxPartySize: integer("max_party_size").default(1).notNull(), // includes the named guest + any plus-ones
+  code: varchar("code", { length: 24 }).notNull(), // unique per-event invite token, goes in the personal RSVP link
+  rsvpStatus: rsvpStatusEnum("rsvp_status").default("pending").notNull(),
+  attendingCount: integer("attending_count"), // how many of their party are actually coming, set on RSVP
+  rsvpData: jsonb("rsvp_data").default({}), // answers to the couple's custom RSVP fields (meal choice, song request, etc.)
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  eventCodeIdx: uniqueIndex("wedding_guests_event_code_idx").on(t.eventId, t.code),
+  eventIdx: index("wedding_guests_event_idx").on(t.eventId),
+  orgIdx: index("wedding_guests_org_idx").on(t.orgId),
 }));

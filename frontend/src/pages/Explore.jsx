@@ -15,6 +15,7 @@ export default function Explore({ events, onEventPage }) {
 
   const filtered = useMemo(() => {
     let list = events.filter(e =>
+      !e.isWedding && // weddings are invite-only, never publicly browsable
       (!search ||
         e.title.toLowerCase().includes(search.toLowerCase()) ||
         e.venue.toLowerCase().includes(search.toLowerCase())

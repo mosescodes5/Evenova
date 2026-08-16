@@ -53,6 +53,10 @@ export const fromEvent = (e) => ({
   ticket_types:  e.ticketTypes  ?? {},
   reg_fields:    e.regFields    ?? [],
   tickets:       e.tickets      ?? [],
+  is_wedding:    e.isWedding    ?? false,
+  couple_names:  e.coupleNames  ?? null,
+  wedding_story: e.weddingStory ?? null,
+  rsvp_deadline: e.rsvpDeadline ?? null,
 });
 
 export const toEvent = (r) => ({
@@ -74,6 +78,10 @@ export const toEvent = (r) => ({
   ticketTypes:  r.ticket_types ?? {},
   regFields:    r.reg_fields   ?? [],
   tickets:      r.tickets      ?? [],
+  isWedding:    r.is_wedding    ?? false,
+  coupleNames:  r.couple_names  ?? null,
+  weddingStory: r.wedding_story ?? null,
+  rsvpDeadline: r.rsvp_deadline ?? null,
 });
 
 export const toLog = (r) => ({
