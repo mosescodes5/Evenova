@@ -88,8 +88,8 @@ export const api = {
   updateDiscountCode: (id, payload, token) => request(`/admin/discount-codes/${id}`, { method: "PATCH", body: payload, token }),
   deleteDiscountCode: (id, token) => request(`/admin/discount-codes/${id}`, { method: "DELETE", token }),
 
-  // Waitlist — public signup, admin review
-  joinWaitlist: (payload) => request("/waitlist", { method: "POST", body: payload }),
+  // Waitlist — signups are closed (public page removed), admin can still
+  // review who already joined before that happened.
   listWaitlist: (token) => request("/admin/waitlist", { token }),
   updateWaitlistStatus: (id, status, token) => request(`/admin/waitlist/${id}`, { method: "PATCH", body: { status }, token }),
 

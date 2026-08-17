@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Calendar, Home, Info, Menu, MessageSquare, Sparkles, Tag, Zap } from "lucide-react";
+import { Calendar, Home, Info, Menu, MessageSquare, Tag, Zap } from "lucide-react";
 import { T } from "../styles/theme.js";
 import { Btn } from "../components/ui/index.jsx";
 import { useMedia } from "../hooks/useMedia.js";
@@ -13,7 +13,6 @@ export default function PublicHeader({ view, onNav }) {
     ["explore","Events",Calendar],
     ["how-it-works","How It Works",Zap],
     ["pricing","Pricing",Tag],
-    ["waitlist","Waitlist",Sparkles],
     ["about","About",Info],
     ["contact","Contact",MessageSquare],
   ];

@@ -1,32 +1,54 @@
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
 
 const ACCENT  = "#7c3aed";
 const ACCENTL = "#a78bfa";
 const GOLD    = "#f59e0b";
 const BG      = "#08080f";
 
-export default function LoadingScreen() {
-  const [phase, setPhase] = useState(0);
-  // phase 0 → logo scale in, phase 1 → text reveals, phase 2 → bar fills, phase 3 → fade out
+/**
+ * Full-screen branded loading state, shown while App.jsx's initial data
+ * fetch (organizers/events/scan logs) is in flight.
+ *
+ * `ready` should be the real "we're done loading" signal (i.e. `!loading`
+ * from App.jsx), not a guess. Previously this component ran on fixed
+ * setTimeout delays with no connection to actual load time — always
+ * forcing a fade-out at ~1.6s regardless of whether real data had
+ * actually finished loading (risking a blank/broken screen underneath on
+ * a slow connection) or making people sit through 2+ seconds of
+ * animation on a fast one, for no reason. Now the entrance choreography
+ * still plays out on a fixed timeline (that's just a reveal animation,
+ * harmless either way), but the EXIT only happens once `ready` is
+ * actually true, with a short grace period so the fade transition has
+ * time to play instead of the app yanking this out of the DOM instantly.
+ */
+export default function LoadingScreen({ ready = false, onDone }) {
+  const [phase, setPhase] = useState(0);       // 0 → logo scale in, 1 → text reveals, 2 → bar shows
+  const [fadingOut, setFadingOut] = useState(false);
+  const [mounted, setMounted] = useState(true);
+
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 300);
-    const t2 = setTimeout(() => setPhase(2), 700);
-    const t3 = setTimeout(() => setPhase(3), 1600);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    const t1 = setTimeout(() => setPhase(1), 250);
+    const t2 = setTimeout(() => setPhase(2), 600);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
-  const letters = "Evenova".split("");
+  useEffect(() => {
+    if (!ready) return;
+    setFadingOut(true);
+    const t = setTimeout(() => { setMounted(false); onDone?.(); }, 400); // matches the opacity transition below
+    return () => clearTimeout(t);
+  }, [ready]);
+
+  if (!mounted) return null;
 
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 9999,
       background: BG,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      gap: 0,
-      opacity: phase === 3 ? 0 : 1,
-      transition: "opacity .5s ease",
-      pointerEvents: phase === 3 ? "none" : "all",
+      opacity: fadingOut ? 0 : 1,
+      transition: "opacity .4s ease",
+      pointerEvents: fadingOut ? "none" : "all",
     }}>
       {/* Background glow orbs */}
       <div style={{
@@ -42,40 +64,28 @@ export default function LoadingScreen() {
         animation: "orbPulse 4s ease-in-out infinite reverse",
       }}/>
 
-      {/* Logo icon */}
-      <div style={{
+      {/* Real logo, not a placeholder */}
+      <img src="/logo-icon.png" alt="Evenova" style={{
         width: 72, height: 72, borderRadius: 22,
-        background: `linear-gradient(135deg, ${ACCENT}, #6d28d9)`,
-        display: "flex", alignItems: "center", justifyContent: "center",
         marginBottom: 20,
         transform: phase >= 0 ? "scale(1)" : "scale(0.5)",
         opacity: phase >= 0 ? 1 : 0,
         transition: "transform .5s cubic-bezier(.34,1.56,.64,1), opacity .3s ease",
         boxShadow: `0 0 40px ${ACCENT}55, 0 0 80px ${ACCENT}22`,
         animation: phase >= 1 ? "logoPulse 2s ease-in-out infinite" : "none",
-      }}>
-        <Sparkles size={32} color="white"/>
-      </div>
+      }}/>
 
-      {/* Letter-by-letter "Evenova" */}
-      <div style={{ display: "flex", gap: 1, marginBottom: 10, height: 44, overflow: "hidden" }}>
-        {letters.map((l, i) => (
-          <span key={i} style={{
-            fontFamily: "'Outfit', system-ui, sans-serif",
-            fontSize: 36, fontWeight: 900,
-            background: i < 2
-              ? `linear-gradient(135deg, white, ${ACCENTL})`
-              : `linear-gradient(135deg, ${ACCENTL}, ${GOLD})`,
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            display: "inline-block",
-            transform: phase >= 1 ? "translateY(0)" : "translateY(100%)",
-            opacity: phase >= 1 ? 1 : 0,
-            transition: `transform .45s cubic-bezier(.34,1.2,.64,1) ${i * 55}ms,
-                         opacity .3s ease ${i * 55}ms`,
-          }}>
-            {l}
-          </span>
-        ))}
+      <div style={{
+        fontFamily: "'Outfit', system-ui, sans-serif",
+        fontSize: 32, fontWeight: 900,
+        background: `linear-gradient(135deg, white, ${ACCENTL} 55%, ${GOLD})`,
+        WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+        marginBottom: 10,
+        transform: phase >= 1 ? "translateY(0)" : "translateY(10px)",
+        opacity: phase >= 1 ? 1 : 0,
+        transition: "transform .45s cubic-bezier(.34,1.2,.64,1), opacity .35s ease",
+      }}>
+        Evenova
       </div>
 
       <p style={{
@@ -83,30 +93,32 @@ export default function LoadingScreen() {
         textTransform: "uppercase", marginBottom: 40,
         opacity: phase >= 1 ? 1 : 0,
         transform: phase >= 1 ? "translateY(0)" : "translateY(8px)",
-        transition: "opacity .4s ease .35s, transform .4s ease .35s",
+        transition: "opacity .4s ease .1s, transform .4s ease .1s",
       }}>
         Event Platform
       </p>
 
-      {/* Progress bar */}
+      {/* Indeterminate progress bar — no fixed end time, since real
+          loading time varies (network conditions, etc.); a bar that
+          claims to reach 100% at a fixed moment would be lying. */}
       <div style={{
-        width: 200, height: 2, borderRadius: 100,
+        width: 160, height: 3, borderRadius: 100,
         background: "rgba(255,255,255,0.06)",
         overflow: "hidden",
         opacity: phase >= 2 ? 1 : 0,
         transition: "opacity .2s ease",
       }}>
         <div style={{
-          height: "100%", borderRadius: 100,
+          height: "100%", width: "40%", borderRadius: 100,
           background: `linear-gradient(90deg, ${ACCENT}, ${ACCENTL}, ${GOLD})`,
-          width: phase >= 2 ? "100%" : "0%",
-          transition: "width .9s cubic-bezier(.4,0,.2,1)",
+          animation: phase >= 2 ? "indeterminate 1.3s ease-in-out infinite" : "none",
         }}/>
       </div>
 
       <style>{`
         @keyframes orbPulse { 0%,100%{transform:translate(-50%,-50%) scale(1)} 50%{transform:translate(-50%,-50%) scale(1.15)} }
         @keyframes logoPulse { 0%,100%{box-shadow:0 0 40px ${ACCENT}55,0 0 80px ${ACCENT}22} 50%{box-shadow:0 0 60px ${ACCENT}88,0 0 120px ${ACCENT}33} }
+        @keyframes indeterminate { 0%{transform:translateX(-100%)} 100%{transform:translateX(350%)} }
       `}</style>
     </div>
   );

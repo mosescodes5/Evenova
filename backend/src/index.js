@@ -12,7 +12,10 @@ import webhookRoutes from "./routes/webhooks.js";
 import emailRoutes     from "./routes/email.js";
 import qrRoutes        from "./routes/qr.js";
 import discountCodesRoutes from "./routes/discountCodes.js";
-import waitlistRoutes  from "./routes/waitlist.js";
+// Public waitlist signups are closed — the page that called this is
+// removed. Admin can still review who already joined via
+// /api/admin/waitlist (in admin.js), which is untouched by this.
+// import waitlistRoutes  from "./routes/waitlist.js";
 import weddingGuestsRoutes from "./routes/weddingGuests.js";
 import whatsappRoutes  from "./routes/whatsapp.js";
 import adminRoutes     from "./routes/admin.js";
@@ -63,7 +66,7 @@ app.use("/api/webhooks", webhookRoutes);
 app.use("/api/email",     emailRoutes);
 app.use("/api/qr",        qrRoutes);
 app.use("/api/discount-codes", discountCodesRoutes);
-app.use("/api/waitlist",  waitlistRoutes);
+// app.use("/api/waitlist",  waitlistRoutes); // signups closed — see note above
 app.use("/api/wedding-guests", weddingGuestsRoutes);
 app.use("/api/whatsapp", whatsappRoutes);
 app.use("/api/admin",    adminRoutes);

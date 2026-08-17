@@ -3,6 +3,7 @@ import { AnimatePresence } from "framer-motion";
 import { T, EVENT_BANNERS } from "./styles/theme.js";
 import StyleInjector from "./styles/StyleInjector.jsx";
 import InstallPrompt from "./components/InstallPrompt.jsx";
+import LoadingScreen from "./components/LoadingScreen.jsx";
 import { genId, genUUID } from "./utils/crypto.js";
 import { DEFAULT_EVENTS, DEFAULT_ORGS } from "./data/seedData.js";
 import * as db from "./utils/db.js";
@@ -18,7 +19,6 @@ import Landing from './pages/Landing.jsx';
 import HowItWorks from './pages/HowItWorks.jsx';
 import About from "./pages/About.jsx";
 import Contact from "./pages/Contact.jsx";
-import Waitlist from "./pages/Waitlist.jsx";
 import WeddingRSVP from "./pages/WeddingRSVP.jsx";
 import Pricing from "./pages/Pricing.jsx";
 import Wallet from "./pages/organizer/Wallet.jsx";
@@ -81,6 +81,7 @@ function parsePath(pathname) {
 
 export default function App() {
   const [loading, setLoading]           = useState(true);
+  const [showBootScreen, setShowBootScreen] = useState(true); // stays true a moment longer than `loading` — gives LoadingScreen's fade-out time to actually play before the real app takes over
   const [organizers, setOrgs]           = useState([]);
   const [orgApplications, setOrgApplications] = useState([]);
   const [orgAppsLoading, setOrgAppsLoading]   = useState(false);
@@ -446,17 +447,10 @@ export default function App() {
   const org = user ? getOrg(user) : null;
   const ev  = events.find(e => e.id === evParam);
 
-  const PUBLIC_VIEWS = ["landing","explore","about","contact","how-it-works","pricing","public-event","register","login","verify-email","forgot-password","waitlist","wedding-rsvp"];
+  const PUBLIC_VIEWS = ["landing","explore","about","contact","how-it-works","pricing","public-event","register","login","verify-email","forgot-password","wedding-rsvp"];
   const isPublic = !user || PUBLIC_VIEWS.includes(view);
 
-  if (loading) return (
-    <div style={{ minHeight:"100vh", background:T.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ textAlign:"center" }}>
-        <div className="spin" style={{ width:40, height:40, border:`3px solid ${T.border}`, borderTopColor:T.accent, borderRadius:"50%", margin:"0 auto 16px" }}/>
-        <p style={{ color:T.muted, fontSize:14 }}>Loading Evenova…</p>
-      </div>
-    </div>
-  );
+  if (showBootScreen) return <LoadingScreen ready={!loading} onDone={() => setShowBootScreen(false)} />;
 
   const renderScreen = () => {
     if (view === "verify-email") return (
@@ -494,7 +488,6 @@ export default function App() {
     if (view === "pricing")   return <Pricing onNav={nav} />;
     if (view === "about")    return <About onNav={nav} />;
     if (view === "contact")  return <Contact notify={notify} />;
-    if (view === "waitlist") return <Waitlist notify={notify} />;
     if (view === "wedding-rsvp") return <WeddingRSVP eventId={evParam?.eventId} code={evParam?.code} notify={notify} />;
     if (view === "explore")  return <Explore events={events} onEventPage={id => nav("public-event", id)} />;
 
@@ -632,7 +625,7 @@ export default function App() {
           </div>
         </AnimatePresence>
       </div>
-      {showPublicChrome && ["landing","about","contact","explore","how-it-works","pricing","waitlist"].includes(view) && (
+      {showPublicChrome && ["landing","about","contact","explore","how-it-works","pricing"].includes(view) && (
         <PublicFooter onNav={nav} />
       )}
     </div>
